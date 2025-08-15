@@ -62,6 +62,9 @@ class WulpusGuiSingleCh(widgets.VBox):
         # Extra variables to control visualization
         self.rx_tx_conf_to_display = 0
 
+        # time when recording of a dataset starts (in seconds since the epoch, as float)
+        self.record_start = 0.0
+
         # For Signal Processing
         self.f_low_cutoff = self.uss_conf.sampling_freq / 2 * 0.1
         self.f_high_cutoff = self.uss_conf.sampling_freq / 2 * 0.9
@@ -374,17 +377,20 @@ class WulpusGuiSingleCh(widgets.VBox):
                            change.new[0]*10**6,
                            change.new[1]*10**6)
 
+    def disable_all_widgets(self, state: bool):
+
+        self.raw_data_check.disabled = state
+        self.filt_data_check.disabled = state
+        self.env_data_check.disabled = state
+        self.bmode_check.disabled = state
+        self.tx_rx_sel_dd.disabled = state
+        self.band_pass_frs.disabled = state
+        self.save_data_check.disabled = state
+
     def click_start_stop_acq(self, b):
 
         if not self.acquisition_running:
-            # Enable the widgets active during acquisition
-            self.raw_data_check.disabled  = False
-            self.filt_data_check.disabled = False
-            self.env_data_check.disabled  = False
-            self.bmode_check.disabled     = False
-            self.tx_rx_sel_dd.disabled    = False
-            self.band_pass_frs.disabled   = False
-            self.save_data_check.disabled = False
+            self.disable_all_widgets(False)
 
             # Disable serial port related widgets
             self.ser_open_button.disabled = True
@@ -397,6 +403,7 @@ class WulpusGuiSingleCh(widgets.VBox):
 
             # Declare that acquisition is running
             self.acquisition_running = True
+            self.record_start = time.time()
 
             # Run data acquisition loop
             self.current_data = None
@@ -410,14 +417,7 @@ class WulpusGuiSingleCh(widgets.VBox):
             # Change state of the button
             b.description = "Start measurement"
 
-            # Disable the widgets when not acquiring
-            self.raw_data_check.disabled  = True
-            self.filt_data_check.disabled = True
-            self.env_data_check.disabled  = True
-            self.bmode_check.disabled     = True
-            self.tx_rx_sel_dd.disabled    = True
-            self.band_pass_frs.disabled   = True
-            self.save_data_check.disabled = True
+            self.disable_all_widgets(True)
 
             # Enable serial port related widgets again
             self.ser_open_button.disabled = False
@@ -460,7 +460,7 @@ class WulpusGuiSingleCh(widgets.VBox):
             # Receive the data
             data = self.com_link.receive_data()
             if data is not None:
-
+                # data: rf_arr, acq_nr, tx_rx_id
                 self.current_data = data
 
                 if data[2] == self.rx_tx_conf_to_display and not self.bmode_check.value:
@@ -488,6 +488,11 @@ class WulpusGuiSingleCh(widgets.VBox):
         t2.join()
 
         self.com_link.send_config(self.uss_conf.get_restart_package())
+
+        # Trim data to actual measured size
+        self.data_arr = self.data_arr[:, :self.data_cnt]
+        self.acq_num_arr = self.acq_num_arr[:self.data_cnt]
+        self.tx_rx_id_arr = self.tx_rx_id_arr[:self.data_cnt]
 
         # Save data to file if needed
         if (self.save_data_check.value):
@@ -580,17 +585,20 @@ class WulpusGuiSingleCh(widgets.VBox):
         return np.abs(hilbert(data_in))
 
     def save_data_to_file(self):
+        start_time = time.localtime(self.record_start)
+        timestring = time.strftime("%Y-%m-%d_%H-%M-%S", start_time)
 
-        # Check filename
-        for i in range(1000):
-            filename = FILE_NAME_BASE + str(i) + '.npz'
-            if not os.path.isfile(filename):
-                break
+        filename = FILE_NAME_BASE + timestring
+        # Check if filename exists (.npz gets added by .savez command)
+        while os.path.isfile(filename + '.npz'):
+            filename = filename + "_conflict"
 
         # Save numpy data array to file
-        np.savez(filename[:-4],
-                 data_arr=self.data_arr,
-                 acq_num_arr=self.acq_num_arr,
-                 tx_rx_id_arr=self.tx_rx_id_arr)
+        np.savez_compressed(filename,
+                            data_arr=self.data_arr,
+                            acq_num_arr=self.acq_num_arr,
+                            tx_rx_id_arr=self.tx_rx_id_arr,
+                            record_start=np.array([self.record_start])
+                            )
 
-        self.save_data_label.value = 'Data saved in ' + filename
+        self.save_data_label.value = 'Data saved in ' + filename + '.npz'
