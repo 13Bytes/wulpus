@@ -36,42 +36,45 @@ LINE_N_SAMPLES = 400
 
 FILE_NAME_BASE = 'data_'
 
-box_layout = widgets.Layout(display='flex',
-                flex_flow='column',
-                align_items='center',
-                width='50%')
-
 class WulpusGuiSingleCh(widgets.VBox):
-     
+    
     def __init__(self, com_link:WulpusDongle, uss_conf, max_vis_fps = 20):
         super().__init__()
-        
+
         # Communication link
         self.com_link = com_link
-        
+
         # Ultrasound Subsystem Configurator
         self.uss_conf = uss_conf
-        
+
         # Allocate memory to store the data and other parameters
         self.data_arr = np.zeros((self.com_link.acq_length, uss_conf.num_acqs), dtype='<i2')
         self.data_arr_bmode = np.zeros((8, self.com_link.acq_length), dtype='<i2')
         self.acq_num_arr = np.zeros(uss_conf.num_acqs, dtype='<u2')
         self.tx_rx_id_arr = np.zeros(uss_conf.num_acqs, dtype=np.uint8)
-        
+
         # For visualization FPS control
         self.vis_fps_period = 1/max_vis_fps
-        
+
         # Extra variables to control visualization
         self.rx_tx_conf_to_display = 0
-        
+
         # For Signal Processing
         self.f_low_cutoff = self.uss_conf.sampling_freq / 2 * 0.1
         self.f_high_cutoff = self.uss_conf.sampling_freq / 2 * 0.9
         self.design_filter(self.uss_conf.sampling_freq,
                            self.f_low_cutoff,
                            self.f_high_cutoff)
- 
-        # Define widgets
+
+        self.build_widgets()
+        self.one_time_fig_config()
+        self.compose_layout()
+        self.connect_callbacks()
+
+    def build_widgets(self):
+        """Create all widgets used by the GUI. Kept separate to clarify flow."""
+        # Title / header
+        self.title = widgets.HTML(value="<h3 style='margin:0;padding:0'>Wulpus</h3>")
         # Serial port related
         self.ser_scan_button = widgets.Button(description="Scan ports",
                                               disabled=False,
@@ -97,6 +100,7 @@ class WulpusGuiSingleCh(widgets.VBox):
                                              description='Serial port:',
                                              disabled=True,
                                              style= {'description_width': 'initial'})
+            # pre-populate by scanning once
             self.click_scan_ports(self.ser_scan_button)
 
         # Visualization-related
@@ -148,6 +152,15 @@ class WulpusGuiSingleCh(widgets.VBox):
         
         self.start_stop_button = widgets.Button(description="Start measurement",
                                                 disabled=True)
+
+        # make buttons more visually prominent
+        try:
+            self.ser_scan_button.button_style = 'info'
+            self.ser_open_button.button_style = 'primary'
+            self.start_stop_button.button_style = 'success'
+        except Exception:
+            # older ipywidgets may not support button_style assignment
+            pass
         
         self.save_data_check = widgets.Checkbox(value=True,
                                                 description='Save Data as .npz',
@@ -155,30 +168,45 @@ class WulpusGuiSingleCh(widgets.VBox):
         
         self.save_data_label = widgets.Label(value='')
 
-        # Setup Visualization
+        # Setup Visualization output container
         self.output = widgets.Output()
-        self.one_time_fig_config()
 
-        
-        # Construct GUI grid
-        controls_1 = widgets.VBox([self.raw_data_check, self.filt_data_check, self.env_data_check, self.bmode_check])
- 
-        controls_2 = widgets.VBox([widgets.HBox([self.ser_open_button, self.ser_scan_button]) , self.ports_dd, self.tx_rx_sel_dd, self.band_pass_frs])
-            
-        controls = widgets.HBox([controls_1, controls_2])
-         
-        out_box = widgets.Box([self.output])
-        
-        progr_ctl_box_1 = widgets.VBox([self.start_stop_button, self.frame_progr_bar])
-        progr_ctl_box_2 = widgets.VBox([self.save_data_check, self.save_data_label])
-        progr_ctl_box = widgets.HBox([progr_ctl_box_1, progr_ctl_box_2])
-        
+    def compose_layout(self):
+        """Compose the widget layout from the built widgets."""
+        padding_layout = widgets.Layout(padding='6px')
+        gap_layout = widgets.Layout(gap='6px')
+        box_layout = widgets.Layout(display='flex',
+                flex_flow='column',
+                align_items='center',
+                width='100%')
+        flex_start_layout = widgets.Layout(justify_content='flex-start', width='100%')
 
-        main_box = widgets.VBox([controls, out_box, progr_ctl_box])
- 
+        controls_1 = widgets.VBox([
+            widgets.HBox([self.ser_open_button, self.ser_scan_button], layout=gap_layout) ,
+            self.ports_dd,
+            self.tx_rx_sel_dd,
+            self.band_pass_frs
+        ], layout=padding_layout)
+        
+        controls_2 = widgets.VBox([self.raw_data_check, self.filt_data_check, self.env_data_check, self.bmode_check],
+                                   layout=padding_layout)
 
-        # Connect callbacks 
-    
+        controls = widgets.HBox([controls_1, controls_2], layout=flex_start_layout)
+        
+        out_box = widgets.Box([self.output], layout=widgets.Layout(width='100%'))
+        
+        progr_ctl_box_1 = widgets.VBox([self.start_stop_button, self.frame_progr_bar], layout=widgets.Layout(padding='6px'))
+        progr_ctl_box_2 = widgets.VBox([self.save_data_check, self.save_data_label], layout=widgets.Layout(padding='6px'))
+        progr_ctl_box = widgets.HBox([progr_ctl_box_1, progr_ctl_box_2], layout=flex_start_layout)
+
+        # Compose main box with title and consistent box layout
+        main_box = widgets.VBox([self.title, controls, out_box, progr_ctl_box], layout=box_layout)
+
+        # attach to widget children
+        self.children = [main_box]
+
+    def connect_callbacks(self):
+        """Wire up widget callbacks/observers."""
         # To serial port related buttons
         self.ser_scan_button.on_click(self.click_scan_ports)
         self.ser_open_button.on_click(self.click_open_port)
@@ -197,9 +225,6 @@ class WulpusGuiSingleCh(widgets.VBox):
         
         # To start stop acqusition button
         self.start_stop_button.on_click(self.click_start_stop_acq)
-         
-        # add to children
-        self.children = [main_box]
         
     def one_time_fig_config(self):
         
@@ -387,8 +412,6 @@ class WulpusGuiSingleCh(widgets.VBox):
             self.ser_open_button.disabled = False
         
     def run_acquisition_loop(self):
-
-#         self.fig.show()
         
         # Clean data buffer
         acq_length = self.com_link.acq_length
@@ -548,7 +571,7 @@ class WulpusGuiSingleCh(widgets.VBox):
     def save_data_to_file(self):
         
         # Check filename
-        for i in range(100):
+        for i in range(1000):
             filename = FILE_NAME_BASE + str(i) + '.npz'
             if not os.path.isfile(filename):
                 break

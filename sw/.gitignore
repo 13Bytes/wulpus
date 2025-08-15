@@ -5,3 +5,5 @@
 # .json are user config files and should not be tracked, except for the configs in examples
 *.json
 !examples/*.json
+
+.venv
