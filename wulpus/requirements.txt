@@ -5,4 +5,5 @@ matplotlib==3.5.2
 jupyter==1.0.0
 pyserial==3.5
 pydantic==2.11
-websockets==15.0
+websockets~=15.0
+json-numpy~=2.1

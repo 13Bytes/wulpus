@@ -30,7 +30,7 @@ USS_CAPTURE_ACQ_RATES_VALUE: Tuple[USS_CAPTURE_ACQ_RATES, ...] = get_args(
 
 class UsConfig(BaseModel):
     # Number of acquisitions to perform.
-    num_acqs: int = Field(default=100, ge=0)
+    num_acqs: int = Field(default=400, ge=0)
     # DC-DC turn on time in microseconds.
     dcdc_turnon: int = Field(default=195300, ge=0, le=65535)
     # Measurement period in microseconds.

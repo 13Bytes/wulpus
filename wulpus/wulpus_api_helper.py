@@ -1,9 +1,7 @@
 import numpy as np
 
-from wulpus.config_models import (MAX_CH_ID, PGA_GAIN, PGA_GAIN_REG, RX_MAP,
+from wulpus.config_models import (RX_MAP,
                                   TX_MAP, TX_RX_MAX_NUM_OF_CONFIGS,
-                                  USS_CAPT_OVER_SAMPLE_RATES_REG,
-                                  USS_CAPTURE_ACQ_RATES, UsConfig,
                                   WulpusConfig)
 
 PACKAGE_LEN = 68

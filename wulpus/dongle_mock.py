@@ -15,7 +15,9 @@
    SPDX-License-Identifier: Apache-2.0
 """
 
+import time
 import serial
+import asyncio
 from serial.tools.list_ports import comports
 from serial.tools.list_ports_common import ListPortInfo
 import numpy as np
@@ -69,6 +71,7 @@ class WulpusDongleMock(WulpusDongle):
         """
         Mock: Return random data with the same structure as the original.
         """
+        time.sleep(0.1)  # Simulate some delay
         rf_arr = np.random.randint(
             1, 1001, size=ACQ_LENGTH_SAMPLES, dtype="<i2")
         tx_rx_id = 0
