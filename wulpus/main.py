@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -11,7 +12,7 @@ from wulpus.wulpus import Wulpus
 wulpus = Wulpus()
 manager = WebsocketManager(wulpus)
 app = FastAPI()
-
+global_send_data_task = None
 
 @app.get("/")
 def root():
@@ -25,10 +26,7 @@ async def start(config: WulpusConfig):
     except ValueError as e:
         return {"connection-error": str(e)}
     wulpus.set_config(config)
-    wulpus.start()
-    await wulpus.listen_measurement_data(manager)
-    # async for measurement in wulpus:
-    #     await manager.broadcast_text("measurement")
+    await wulpus.start()
     return {"ok": "ok"}
 
 
@@ -44,8 +42,14 @@ def connect(conf: ComPort):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    global global_send_data_task
     await manager.connect(websocket)
     asyncio.create_task(manager.send_status(websocket))
+    if global_send_data_task is None or global_send_data_task.done():
+        new_measurement_event = asyncio.Event()
+        wulpus.set_new_measurement_event(new_measurement_event)
+        global_send_data_task = asyncio.create_task(
+            manager.send_data(new_measurement_event))
     try:
         while True:
             data = await websocket.receive_text()
