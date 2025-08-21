@@ -32,6 +32,7 @@ class Wulpus:
         self._data_tx_rx_id:  Union[np.ndarray, None] = None
         # Event to signal new measurement data for WebSocket clients
         self._new_measurement = asyncio.Event()
+        self._live_data_cnt = 0
 
     def get_connection_options(self):
         return self._dongle.get_available()
@@ -56,7 +57,9 @@ class Wulpus:
         return {"status": self._status,
                 "bluetooth": self._dongle.get_status(),
                 "us_config": self._config.us_config if self._config else None,
-                "tx_rx_config": self._config.tx_rx_config if self._config else None}
+                "tx_rx_config": self._config.tx_rx_config if self._config else None,
+                "progress": self._live_data_cnt / self._config.us_config.num_acqs if self._config else 0,
+                }
 
     def set_config(self, config: WulpusConfig) -> bytes:
         self._config = config
@@ -82,8 +85,8 @@ class Wulpus:
         else:
             self._status = Status.NOT_CONNECTED
 
-    def get_latest_frame(self):
-        return self._latest_frame
+    def set_new_measurement_event(self, event: asyncio.Event):
+        self._new_measurement = event
 
     async def __measure(self):
         number_of_acq = self._config.us_config.num_acqs
@@ -103,18 +106,18 @@ class Wulpus:
                 self._data_acq_num[data_cnt] = data[1]
                 self._data_tx_rx_id[data_cnt] = data[2]
                 self._new_measurement.set()
+                self._live_data_cnt = data_cnt
                 data_cnt += 1
             await asyncio.sleep(0.001)
 
+        self._live_data_cnt = 1
         # Trim data to actual measured size
         self._data = self._data[:, :data_cnt]
         self._data_acq_num = self._data_acq_num[:data_cnt]
         self._data_tx_rx_id = self._data_tx_rx_id[:data_cnt]
 
-    def set_new_measurement_event(self, event: asyncio.Event):
-        self._new_measurement = event
+    def get_latest_frame(self):
+        return self._latest_frame
 
-    async def get_new_measurement(self):
-        # await self._new_measurement.wait()
-        # self._new_measurement.clear()
+    async def get_measurement(self):
         return self._data, self._data_acq_num, self._data_tx_rx_id

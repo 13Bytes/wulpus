@@ -3,7 +3,6 @@ import asyncio
 import json
 from typing import TYPE_CHECKING
 
-import json_numpy
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.websockets import WebSocketState
@@ -54,10 +53,10 @@ class WebsocketManager:
         # Send latest frame to new client
         latest_frame = self.wulpus.get_latest_frame()
         if not latest_frame is None:
-            await self.broadcast_json(json_numpy.dumps(latest_frame))
+            await self.broadcast_json(latest_frame.tolist())
 
         while True:
             await new_measurement_event.wait()
             new_measurement_event.clear()
-            data, acq_num, tx_rx_id = await self.wulpus.get_new_measurement()
-            await self.broadcast_json(json_numpy.dumps(data))
+            data = self.wulpus.get_latest_frame()
+            await self.broadcast_json(data.tolist())
