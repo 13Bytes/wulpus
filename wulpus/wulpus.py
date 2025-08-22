@@ -5,7 +5,7 @@ from typing import Union
 
 import numpy as np
 
-from wulpus.config_models import WulpusConfig
+from wulpus.wulpus_config_models import WulpusConfig
 from wulpus.dongle_mock import WulpusDongleMock
 from wulpus.websocket_manager import WebsocketManager
 from wulpus.wulpus_api import gen_conf_package, gen_restart_package
@@ -106,15 +106,15 @@ class Wulpus:
                 self._data_acq_num[data_cnt] = data[1]
                 self._data_tx_rx_id[data_cnt] = data[2]
                 self._new_measurement.set()
-                self._live_data_cnt = data_cnt
                 data_cnt += 1
+                self._live_data_cnt = data_cnt
             await asyncio.sleep(0.001)
 
-        self._live_data_cnt = 1
         # Trim data to actual measured size
         self._data = self._data[:, :data_cnt]
         self._data_acq_num = self._data_acq_num[:data_cnt]
         self._data_tx_rx_id = self._data_tx_rx_id[:data_cnt]
+        self._status = Status.READY
 
     def get_latest_frame(self):
         return self._latest_frame

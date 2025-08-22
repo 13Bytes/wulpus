@@ -1,10 +1,19 @@
+from __future__ import annotations
 import numpy as np
+from typing import TYPE_CHECKING
 
-from wulpus.config_models import (RX_MAP,
-                                  TX_MAP, TX_RX_MAX_NUM_OF_CONFIGS,
-                                  WulpusConfig)
+if TYPE_CHECKING:
+    from wulpus.wulpus_config_models import WulpusConfig
 
 PACKAGE_LEN = 68
+
+TX_RX_MAX_NUM_OF_CONFIGS = 16
+# TX RX is configured by activating the
+# switches of HV multiplexer
+# The arrays below maps transducer channels (0...7)
+# to switches IDs (0..15) which we need to activate
+RX_MAP = np.array([0, 2, 4, 6, 8, 10, 12, 14])
+TX_MAP = np.array([1, 3, 5, 7, 9, 11, 13, 15])
 
 
 def as_byte(value: int, format: str):

@@ -1,12 +1,10 @@
 import numpy as np
 
-from wulpus.config_models import (MAX_CH_ID, PGA_GAIN, PGA_GAIN_REG, PGA_GAIN_VALUE, RX_MAP,
-                                  TX_MAP, TX_RX_MAX_NUM_OF_CONFIGS,
-                                  USS_CAPT_OVER_SAMPLE_RATES_REG,
-                                  USS_CAPTURE_ACQ_RATES, USS_CAPTURE_ACQ_RATES_VALUE, UsConfig,
-                                  WulpusConfig)
 from wulpus.wulpus_api_helper import (as_byte, build_tx_rx_configs,
                                       fill_package_to_min_len, us_to_ticks)
+from wulpus.wulpus_config_models import (PGA_GAIN_REG,
+                                         PGA_GAIN_VALUE, USS_CAPT_OVER_SAMPLE_RATES_REG,
+                                         USS_CAPTURE_ACQ_RATES_VALUE, WulpusConfig)
 
 START_BYTE_CONF_PACK = 250
 START_BYTE_RESTART = 251

@@ -4,7 +4,7 @@ import time
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from wulpus.config_models import ComPort, WulpusConfig
+from wulpus.wulpus_config_models import ComPort, WulpusConfig
 from wulpus.websocket_manager import WebsocketManager
 from wulpus.wulpus import Wulpus
 
@@ -50,6 +50,9 @@ async def websocket_endpoint(websocket: WebSocket):
         wulpus.set_new_measurement_event(new_measurement_event)
         global_send_data_task = asyncio.create_task(
             manager.send_data(new_measurement_event))
+    latest_frame = wulpus.get_latest_frame()
+    if latest_frame is not None:
+        await manager.broadcast_json(latest_frame.tolist())
     try:
         while True:
             data = await websocket.receive_text()

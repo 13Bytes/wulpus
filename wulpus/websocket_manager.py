@@ -50,11 +50,6 @@ class WebsocketManager:
             return
 
     async def send_data(self, new_measurement_event: asyncio.Event):
-        # Send latest frame to new client
-        latest_frame = self.wulpus.get_latest_frame()
-        if not latest_frame is None:
-            await self.broadcast_json(latest_frame.tolist())
-
         while True:
             await new_measurement_event.wait()
             new_measurement_event.clear()
