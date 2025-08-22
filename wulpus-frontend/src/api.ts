@@ -5,7 +5,7 @@ export type ConnectResponse = { ok: string } | { [key: string]: string };
 // Use Vite proxy in dev to avoid CORS; see vite.config.ts
 const BASE_URL = "/api";
 
-export async function getConnections(): Promise<string[]> {
+export async function getBTHConnections(): Promise<string[]> {
     const res = await fetch(`${BASE_URL}/connections`);
     if (!res.ok) throw new Error(`GET /connections failed: ${res.status}`);
     const data = await res.json();
@@ -34,6 +34,14 @@ export async function postConnect(com_port: string): Promise<void> {
         body: JSON.stringify({ com_port }),
     });
     if (!res.ok) throw new Error(`POST /connect failed: ${res.status}`);
+}
+
+export async function postDisconnect(): Promise<void> {
+    const res = await fetch(`${BASE_URL}/disconnect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`POST /disconnect failed: ${res.status}`);
 }
 
 export async function postStart(config: unknown): Promise<ConnectResponse> {

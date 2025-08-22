@@ -40,6 +40,11 @@ def connect(conf: ComPort):
     wulpus.connect(conf.com_port)
 
 
+@app.post("/disconnect")
+def disconnect():
+    wulpus.disconnect()
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     global global_send_data_task

@@ -53,6 +53,10 @@ class Wulpus:
         else:
             self._status = Status.NOT_CONNECTED
 
+    def disconnect(self):
+        self._dongle.close()
+        self._status = Status.NOT_CONNECTED
+
     def get_status(self):
         return {"status": self._status,
                 "bluetooth": self._dongle.get_status(),
