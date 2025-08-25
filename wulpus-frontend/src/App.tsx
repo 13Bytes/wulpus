@@ -33,17 +33,17 @@ function App() {
   const [txRxConfigs, setTxRxConfigs] = useState<TxRxConfig[]>([{ config_id: 0, tx_channels: [0], rx_channels: [0], optimized_switching: true }]);
   const [usConfig, setUsConfig] = useState<UsConfig>({
     num_acqs: 400,
-    dcdc_turnon: 195300,
+    dcdc_turnon: 100,
     meas_period: 321965,
     trans_freq: 2250000,
     pulse_freq: 2250000,
-    num_pulses: 2,
+    num_pulses: 1,
     sampling_freq: 8000000,
     num_samples: 400,
     rx_gain: 3.5,
     num_txrx_configs: 1,
     tx_configs: [0],
-    rx_configs: [0],
+    rx_configs: [1],
     start_hvmuxrx: 500,
     start_ppg: 500,
     turnon_adc: 5,
@@ -203,7 +203,7 @@ function App() {
 
                 {status?.status !== 3 && (
                   <button
-                  onClick={handleStart}
+                    onClick={handleStart}
                     className={`w-full bg-green-600 hover:bg-green-700 text-white rounded px-3 py-2 ${status?.status != 2 ? 'opacity-50' : ''}`}
                     disabled={status?.status != 2}
                   >

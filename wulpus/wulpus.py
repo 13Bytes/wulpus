@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from enum import IntEnum
 from typing import Union
@@ -10,6 +11,8 @@ from wulpus.dongle_mock import WulpusDongleMock
 from wulpus.dongle import WulpusDongle
 from wulpus.websocket_manager import WebsocketManager
 from wulpus.wulpus_api import gen_conf_package, gen_restart_package
+import wulpus
+import inspect
 
 
 class Status(IntEnum):
@@ -33,6 +36,7 @@ class Wulpus:
         self._data_tx_rx_id:  Union[np.ndarray, None] = None
         # Event to signal new measurement data for WebSocket clients
         self._new_measurement = asyncio.Event()
+        self._recording_start = time.time()
         self._live_data_cnt = 0
         self._acquisition_running = False
 
@@ -101,6 +105,7 @@ class Wulpus:
         self._new_measurement = event
 
     async def __measure(self):
+        self._recording_start = time.time()
         number_of_acq = self._config.us_config.num_acqs
         num_samples = self._config.us_config.num_samples
         self._data = np.zeros((num_samples, number_of_acq), dtype='<i2')
@@ -129,6 +134,27 @@ class Wulpus:
         self._data_acq_num = self._data_acq_num[:data_cnt]
         self._data_tx_rx_id = self._data_tx_rx_id[:data_cnt]
         self._status = Status.READY
+        self.__save_measurement()
+
+    def __save_measurement(self):
+        start_time = time.localtime(self._recording_start)
+        timestring = time.strftime("%Y-%m-%d_%H-%M-%S", start_time)
+        filename = "wulpus-data-" + timestring
+        module_path = os.path.dirname(inspect.getfile(wulpus))
+        measurement_path = os.path.join(module_path, 'measurements')
+        os.chdir(measurement_path)
+
+        # Check if filename exists (.npz gets added by .savez command)
+        while os.path.isfile(filename + '.npz'):
+            filename = filename + "_conflict"
+        # Save numpy data array to file
+        np.savez_compressed(filename,
+                            data_arr=self._data,
+                            acq_num_arr=self._data_acq_num,
+                            tx_rx_id_arr=self._data_tx_rx_id,
+                            record_start=np.array([self._recording_start]))
+
+        print('Data saved in ' + filename + '.npz')
 
     def get_latest_frame(self):
         return self._latest_frame
