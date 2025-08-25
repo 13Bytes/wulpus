@@ -30,6 +30,12 @@ async def start(config: WulpusConfig):
     return {"ok": "ok"}
 
 
+@app.post("/stop")
+def stop():
+    wulpus.stop()
+    return {"ok": "ok"}
+
+
 @app.get("/connections")
 def get_connections():
     return wulpus.get_connection_options()

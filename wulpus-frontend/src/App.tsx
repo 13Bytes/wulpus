@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import useWebSocket from 'react-use-websocket';
 import type { DataFrame, Status, UsConfig, TxRxConfig, WulpusConfig } from './websocket-types';
 import Plot from 'react-plotly.js';
-import { getBTHConnections, postConnect, postDisconnect, postStart } from './api';
+import type Plotly from 'plotly.js';
+import { getBTHConnections, postConnect, postDisconnect, postStart, postStop, StatusLabel } from './api';
+import { MultiNumField } from './MultiNumField';
+import { NumberField, SelectField } from './Fields';
+import { bandpassFIR, hilbertEnvelope } from './helper';
 
 function App() {
 
@@ -11,11 +15,19 @@ function App() {
     shouldReconnect: () => true,
   });
 
-  const [status, setStatus] = useState<Status | null>(null);
-
-  const [dataFrame, setDataFrame] = useState<DataFrame | null>(null);
-  const [connections, setConnections] = useState<string[]>([]);
+  const [connections, setConnections] = useState<string[][]>([]);
   const [selectedPort, setSelectedPort] = useState<string>("");
+
+  const [status, setStatus] = useState<Status | null>(null);
+  const [dataFrame, setDataFrame] = useState<DataFrame | null>(null);
+
+
+  const bmodeBufferSize = 8; // keep a small ring buffer of recent frames for b-mode (8 rows)
+  const [showBMode, setShowBMode] = useState<boolean>(false);
+  const [bmodeBuffer, setBmodeBuffer] = useState<number[][]>(() => []);
+  // fullscreen graph support
+  const plotContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // WulpusConfig state
   const [txRxConfigs, setTxRxConfigs] = useState<TxRxConfig[]>([{ config_id: 0, tx_channels: [0], rx_channels: [0], optimized_switching: true }]);
@@ -58,6 +70,12 @@ function App() {
       }
       else if (Array.isArray(lastJsonMessage)) {
         setDataFrame(lastJsonMessage);
+        // push into bmode buffer
+        setBmodeBuffer((prev) => {
+          const next = [...prev, lastJsonMessage.slice()];
+          if (next.length > bmodeBufferSize) next.shift();
+          return next;
+        });
       }
     }
   }, [lastJsonMessage, setStatus, setDataFrame]);
@@ -68,12 +86,42 @@ function App() {
       .catch(() => setConnections([]))
   }, []);
 
+  // track fullscreen changes
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  async function toggleFullscreen() {
+    const el = plotContainerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      const elWithVendors = el as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void> | void;
+        msRequestFullscreen?: () => Promise<void> | void;
+      };
+      if (elWithVendors.requestFullscreen) await elWithVendors.requestFullscreen();
+      else if (elWithVendors.webkitRequestFullscreen) await elWithVendors.webkitRequestFullscreen();
+      else if (elWithVendors.msRequestFullscreen) await elWithVendors.msRequestFullscreen();
+    } else {
+      const docWithVendors = document as Document & {
+        webkitExitFullscreen?: () => Promise<void> | void;
+        msExitFullscreen?: () => Promise<void> | void;
+      };
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (docWithVendors.webkitExitFullscreen) await docWithVendors.webkitExitFullscreen();
+      else if (docWithVendors.msExitFullscreen) await docWithVendors.msExitFullscreen();
+    }
+  }
+
   async function refreshConnections() {
     try {
       const list = await getBTHConnections();
       setConnections(list);
+      const justPosts: string[] = list.map(item => item[1]);
       // if previously selected port is gone, clear selection
-      if (selectedPort && !list.includes(selectedPort)) {
+      if (selectedPort && !justPosts.includes(selectedPort)) {
         setSelectedPort("");
       }
     } catch (e) {
@@ -94,6 +142,7 @@ function App() {
   }
 
   async function handleConnect() {
+    console.log("Connecting to port:", selectedPort);
     if (!selectedPort) return;
     await postConnect(selectedPort);
   }
@@ -101,6 +150,12 @@ function App() {
   async function handleStart() {
     await postStart(effectiveConfig);
   }
+
+  // compute filter/envelope just-in-time before rendering
+  const lowCutHz = usConfig.sampling_freq / 2 * 0.1;
+  const highCutHz = usConfig.sampling_freq / 2 * 0.9;
+  const filteredFrame = dataFrame ? bandpassFIR(dataFrame, usConfig.sampling_freq, lowCutHz, highCutHz, 31) : [];
+  const envelopeFrame = filteredFrame.length ? hilbertEnvelope(filteredFrame, 101) : [];
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -110,15 +165,15 @@ function App() {
         <section className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-lg shadow p-4 space-y-3">
             <h2 className="font-medium">Connection</h2>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <select className="flex-1 border rounded px-2 py-1"
+            <div className="flex flex-col space-y-2">
+              <div className="flex flex-row flex-nowrap items-center space-x-2">
+                <select className="border rounded px-2 py-1 w-52"
                   disabled={(status?.status ?? 0) !== 0}
                   value={selectedPort}
                   onChange={(e) => setSelectedPort(e.target.value)}>
                   <option value="">Select port</option>
                   {connections.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c[0]} value={c[0]}>{c[1]}</option>
                   ))}
                 </select>
                 <button onClick={refreshConnections} title="Refresh" className="p-2 bg-gray-100 hover:bg-gray-200 rounded">
@@ -132,7 +187,7 @@ function App() {
                 {status?.status === 0 && (
                   <button
                     onClick={handleConnect}
-                    className={`w-full bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 cursor-pointer`}
+                    className={`w-full bg-blue-600 hover:bg-blue-700 text-white rounded px-3 py-2 `}
                   >
                     Connect
                   </button>
@@ -140,15 +195,29 @@ function App() {
                 {status?.status !== 0 && (
                   <button
                     onClick={postDisconnect}
-                    className={`w-full bg-yellow-600 hover:bg-yellow-700 text-white rounded px-3 py-2 ${status?.status === 1 ? 'opacity-50' : 'cursor-pointer'}`}
+                    className={`w-full bg-yellow-600 hover:bg-yellow-700 text-white rounded px-3 py-2 ${status?.status === 1 ? 'opacity-50' : ''}`}
                   >
                     Disconnect
                   </button>
                 )}
-                <button
+
+                {status?.status !== 3 && (
+                  <button
                   onClick={handleStart}
-                  className={`w-full bg-green-600 hover:bg-green-700 text-white rounded px-3 py-2 ${status?.status != 2 ? 'opacity-50' : 'cursor-pointer'}`}
-                  disabled={status?.status != 2}>Start</button>
+                    className={`w-full bg-green-600 hover:bg-green-700 text-white rounded px-3 py-2 ${status?.status != 2 ? 'opacity-50' : ''}`}
+                    disabled={status?.status != 2}
+                  >
+                    Start
+                  </button>
+                )}
+                {status?.status === 3 && (
+                  <button
+                    onClick={postStop}
+                    className={`w-full bg-red-600 hover:bg-red-700 text-white rounded px-3 py-2`}
+                  >
+                    Stop
+                  </button>
+                )}
               </div>
             </div>
             <div className="text-xs text-gray-600">
@@ -193,27 +262,66 @@ function App() {
         </section>
 
         <div className="col-span-2 space-y-3">
-          <div className="bg-white rounded-lg p-4 shadow">
+          <div ref={plotContainerRef} className="bg-white rounded-lg p-4 shadow">
 
             <h2 className="font-medium mb-3">Live Signal</h2>
             <div className="h-[400px]">
-              <Plot
-                data={[
-                  {
-                    x: dataFrame?.map((_, index) => index) ?? [],
-                    y: dataFrame?.map((value) => value) ?? [],
-                    type: 'scatter',
-                    mode: 'lines',
-                    marker: { color: 'blue' },
-                  },
-                ]}
-                style={{ width: "100%", height: "100%" }}
-                layout={{
-                  autosize: true, uirevision: "fixed",
-                  showlegend: false,
-                  margin: { t: 10, r: 10, b: 30, l: 40 },
-                }}
-              />
+              {showBMode ? (
+                <Plot
+                  data={[{
+                    z: bmodeBuffer.length ? bmodeBuffer : [[]],
+                    type: 'heatmap',
+                    colorscale: 'Viridis',
+                    reversescale: true,
+                  }] as unknown as Plotly.Data[]}
+                  useResizeHandler
+                  style={{ width: "100%", height: "100%" }}
+                  layout={{ autosize: true, margin: { t: 10, r: 10, b: 30, l: 40 } }}
+                />
+              ) : (
+                <Plot
+                  data={([
+                    {
+                        x: dataFrame ? dataFrame.map((_, i) => i) : [],
+                        y: dataFrame ?? [],
+                        type: 'scatter', mode: 'lines', name: 'Raw', line: { color: 'blue' },
+                      },
+                      {
+                        x: dataFrame ? dataFrame.map((_, i) => i) : [],
+                        y: filteredFrame.length ? filteredFrame : [],
+                        type: 'scatter', mode: 'lines', name: 'Filter', line: { color: 'green' },
+                        visible: 'legendonly',
+                      },
+                      {
+                        x: dataFrame ? dataFrame.map((_, i) => i) : [],
+                        y: envelopeFrame.length ? envelopeFrame : [],
+                        type: 'scatter', mode: 'lines', name: 'Envelope', line: { color: 'red' },
+                        visible: 'legendonly',
+                      },
+                    ]) as unknown as Plotly.Data[]}
+                    useResizeHandler
+                    style={{ width: "100%", height: "100%" }}
+                    layout={{
+                      autosize: true, uirevision: "fixed",
+                      showlegend: true,
+                      legend: { orientation: 'h', },
+                      margin: { t: 10, r: 10, b: 30, l: 40 },
+                    }}
+                  />
+              )}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => setShowBMode(o => !o)}
+                className={`bg-gray-500 hover:bg-gray-600 text-white rounded p-1`}
+              >
+                {showBMode ? 'Disable' : 'Enable'} B Mode</button>
+              <button
+                onClick={toggleFullscreen}
+                className={`border-gray-500 border-1 hover:bg-gray-200 rounded p-1 flex items-center justify-center`}
+              >
+                {isFullscreen ? <span className="material-symbols-rounded">fullscreen_exit</span> : <span className="material-symbols-rounded">fullscreen</span>}
+              </button>
             </div>
           </div>
 
@@ -253,7 +361,9 @@ function App() {
                   </div>
                 </div>
               ))}
-              <button onClick={addTxRx} className="bg-gray-100 hover:bg-gray-200 rounded px-3 py-2 text-sm">Add configuration</button>
+              {txRxConfigs.length < 8 && (
+                <button onClick={addTxRx} className="bg-gray-100 hover:bg-gray-200 rounded px-3 py-2 text-sm">Add configuration</button>
+              )}
             </div>
           </div>
         </div>
@@ -265,97 +375,3 @@ function App() {
 }
 
 export default App
-
-// UI helpers
-function NumberField({ label, value, onChange, step = 1, min }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number }) {
-  return (
-    <label className="text-sm">
-      <div className="mb-1 text-gray-600">{label}</div>
-      <input type="number" className="w-full border rounded px-2 py-1" value={value} step={step} min={min}
-        onChange={(e) => onChange(Number(e.target.value))} />
-    </label>
-  );
-}
-
-function SelectField({ label, value, onChange, options }: { label: string; value: string | number; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
-  return (
-    <label className="text-sm">
-      <div className="mb-1 text-gray-600">{label}</div>
-      <select className="w-full border rounded px-2 py-1" value={String(value)} onChange={(e) => onChange(e.target.value)}>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </label>
-  );
-}
-
-function MultiNumField({ label, values, onChange, showChannelBoxes = false, color = 'bg-green-500' }: {
-  label: string;
-  values: number[];
-  onChange: (vals: number[]) => void;
-  showChannelBoxes?: boolean;
-  color?: string;
-}) {
-  const [text, setText] = useState(values.join(','));
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  // Only overwrite the text when the input is not focused. This prevents
-  // removing a trailing comma while the user is typing (which made "," disappear).
-  useEffect(() => {
-    try {
-      const active = typeof document !== 'undefined' ? document.activeElement : null;
-      if (inputRef.current && active === inputRef.current) {
-        // user is editing — don't clobber their input
-        return;
-      }
-    } catch (e) {
-      // ignore (e.g., SSR)
-    }
-    setText(values.join(','));
-  }, [values]);
-
-  function toggleChannel(ch: number) {
-    const exists = values.includes(ch);
-    const next = exists ? values.filter(v => v !== ch) : [...values, ch].sort((a, b) => a - b);
-    onChange(next);
-  }
-  return (
-    <label className="text-sm col-span-2">
-      <div className="mb-1 text-gray-600">{label}</div>
-      <div className="flex items-center gap-3 flex-wrap">
-        <input ref={inputRef} className="flex-1 border rounded px-2 py-1"
-          value={text}
-          onChange={(e) => {
-            const v = e.target.value;
-            setText(v);
-            const nums = v.split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => !Number.isNaN(n));
-            onChange(nums);
-          }}
-          placeholder="e.g., 0,1,2" />
-        {showChannelBoxes && (
-          <div className="flex gap-1">
-            {Array.from({ length: 8 }).map((_, ch) => {
-              const active = values.includes(ch);
-              const base = `h-6 w-6 rounded flex items-center justify-center text-white text-xs ${active ? color : 'bg-gray-200 text-gray-700'}`;
-              return (
-                <button key={ch} type="button" onClick={() => toggleChannel(ch)} className={base} aria-pressed={active} title={`Channel ${ch}`}>
-                  {ch}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </label>
-  );
-}
-
-function StatusLabel(s?: number) {
-  switch (s) {
-    case 0: return 'NOT_CONNECTED';
-    case 1: return 'CONNECTING';
-    case 2: return 'READY';
-    case 3: return 'RUNNING';
-    case 9: return 'ERROR';
-    default: return String(s ?? '—');
-  }
-}

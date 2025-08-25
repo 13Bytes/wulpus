@@ -5,24 +5,17 @@ export type ConnectResponse = { ok: string } | { [key: string]: string };
 // Use Vite proxy in dev to avoid CORS; see vite.config.ts
 const BASE_URL = "/api";
 
-export async function getBTHConnections(): Promise<string[]> {
+export async function getBTHConnections(): Promise<string[][]> {
     const res = await fetch(`${BASE_URL}/connections`);
     if (!res.ok) throw new Error(`GET /connections failed: ${res.status}`);
-    const data = await res.json();
+    const data = await res.json() as { [key: string]: string }[]
     // Backend might return list of strings or objects; normalize to strings
     if (Array.isArray(data)) {
         return data.map((item) => {
-            if (typeof item === "string") return item;
-            // Try common fields from serial.tools.list_ports
-            if (item && typeof item === "object") {
-                const obj = item as Record<string, unknown>;
-                const device = typeof obj.device === "string" ? obj.device : undefined;
-                const name = typeof obj.name === "string" ? obj.name : undefined;
-                const desc = typeof obj.description === "string" ? obj.description : undefined;
-                return device || name || desc || JSON.stringify(item);
-            }
-            return String(item);
-        });
+            // get key of object:
+            const key = Object.keys(item)[0];
+            return [key, item[key]];
+        })
     }
     return [];
 }
@@ -52,4 +45,24 @@ export async function postStart(config: unknown): Promise<ConnectResponse> {
     });
     if (!res.ok) throw new Error(`POST /start failed: ${res.status}`);
     return res.json();
+}
+
+export async function postStop(): Promise<ConnectResponse> {
+    const res = await fetch(`${BASE_URL}/stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`POST /stop failed: ${res.status}`);
+    return res.json();
+}
+
+export function StatusLabel(s?: number) {
+    switch (s) {
+        case 0: return 'NOT_CONNECTED';
+        case 1: return 'CONNECTING';
+        case 2: return 'READY';
+        case 3: return 'RUNNING';
+        case 9: return 'ERROR';
+        default: return String(s ?? '—');
+    }
 }

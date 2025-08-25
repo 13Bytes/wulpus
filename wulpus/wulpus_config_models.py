@@ -1,8 +1,7 @@
 import numpy as np
 from pydantic import BaseModel, Field, field_validator
 from typing import Union, Literal, Tuple, get_args
-from sw.wulpus.rx_tx_conf import TX_RX_MAX_NUM_OF_CONFIGS
-from wulpus.wulpus_api_helper import us_to_ticks
+from wulpus.wulpus_api_helper import TX_RX_MAX_NUM_OF_CONFIGS, us_to_ticks
 
 # Available RX gain in dB
 PGA_GAIN = Literal[-6.5, -5.5, -4.6, -4.1, -3.3, -2.3, -1.4, -0.8,

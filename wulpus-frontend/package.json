@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@material-symbols/font-400": "^0.34.1",
     "@tailwindcss/vite": "^4.1.12",
     "plotly.js": "^3.1.0",
     "react": "^19.1.1",

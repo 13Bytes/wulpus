@@ -7,6 +7,7 @@ import numpy as np
 
 from wulpus.wulpus_config_models import WulpusConfig
 from wulpus.dongle_mock import WulpusDongleMock
+from wulpus.dongle import WulpusDongle
 from wulpus.websocket_manager import WebsocketManager
 from wulpus.wulpus_api import gen_conf_package, gen_restart_package
 
@@ -23,8 +24,8 @@ class Wulpus:
     def __init__(self):
         self._config: Union[WulpusConfig, None] = None
         self._status: Status = Status.NOT_CONNECTED
-        # self._dongle = WulpusDongle()
-        self._dongle = WulpusDongleMock()
+        self._dongle = WulpusDongle()
+        # self._dongle = WulpusDongleMock()
         self._last_connection: str = ''
         self._latest_frame: Union[np.ndarray, None] = None
         self._data:  Union[np.ndarray, None] = None
@@ -33,6 +34,7 @@ class Wulpus:
         # Event to signal new measurement data for WebSocket clients
         self._new_measurement = asyncio.Event()
         self._live_data_cnt = 0
+        self._acquisition_running = False
 
     def get_connection_options(self):
         return self._dongle.get_available()
@@ -89,6 +91,12 @@ class Wulpus:
         else:
             self._status = Status.NOT_CONNECTED
 
+    def stop(self):
+        """
+        Stops measurement task by using a flag
+        """
+        self._acquisition_running = False
+
     def set_new_measurement_event(self, event: asyncio.Event):
         self._new_measurement = event
 
@@ -100,8 +108,8 @@ class Wulpus:
         self._data_tx_rx_id = np.zeros(number_of_acq, dtype=np.uint8)
         # Acquisition counter
         data_cnt = 0
-        acquisition_running = True
-        while data_cnt < number_of_acq and acquisition_running:
+        self._acquisition_running = True
+        while data_cnt < number_of_acq and self._acquisition_running:
             # Receive the data
             data = self._dongle.receive_data()
             if data is not None:
@@ -114,6 +122,8 @@ class Wulpus:
                 self._live_data_cnt = data_cnt
             await asyncio.sleep(0.001)
 
+        # stop measurement
+        self._dongle.send_config(gen_restart_package())
         # Trim data to actual measured size
         self._data = self._data[:, :data_cnt]
         self._data_acq_num = self._data_acq_num[:data_cnt]
