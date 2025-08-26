@@ -8,10 +8,12 @@ function sinc(x: number) {
 }
 
 function hammingWindow(n: number) {
-  // return array length n
+  const ALPHA = 0.54;
+  const BETA = 0.46;
   const out = new Array<number>(n);
+
   for (let i = 0; i < n; i++) {
-    out[i] = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (n - 1));
+    out[i] = ALPHA - BETA * Math.cos((2 * Math.PI * i) / (n - 1));
   }
   return out;
 }
@@ -85,7 +87,7 @@ export function hilbertEnvelope(data: number[], nTaps = 101) {
   // envelope sqrt(real^2 + imag^2)
   const out = new Array<number>(data.length);
   for (let i = 0; i < data.length; i++) {
-    out[i] = Math.sqrt(data[i] * data[i] + imag[i] * imag[i]);
+    out[i] = Math.hypot(data[i], imag[i]);
   }
   return out;
 }

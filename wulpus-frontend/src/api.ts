@@ -56,6 +56,12 @@ export async function postStop(): Promise<ConnectResponse> {
     return res.json();
 }
 
+export async function getLogs(): Promise<string[]> {
+    const res = await fetch('/logs');
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+}
+
 export function StatusLabel(s?: number) {
     switch (s) {
         case 0: return 'NOT_CONNECTED';

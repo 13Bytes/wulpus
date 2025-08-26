@@ -9,6 +9,7 @@ import numpy as np
 
 import wulpus
 from wulpus.dongle import WulpusDongle
+from wulpus.dongle_mock import WulpusDongleMock
 from wulpus.wulpus_api import gen_conf_package, gen_restart_package
 from wulpus.wulpus_config_models import WulpusConfig
 
@@ -25,8 +26,8 @@ class Wulpus:
     def __init__(self):
         self._config: Union[WulpusConfig, None] = None
         self._status: Status = Status.NOT_CONNECTED
-        self._dongle = WulpusDongle()
-        # self._dongle = WulpusDongleMock()
+        # self._dongle = WulpusDongle()
+        self._dongle = WulpusDongleMock()
         self._last_connection: str = ''
         self._latest_frame: Union[np.ndarray, None] = None
         self._data:  Union[np.ndarray, None] = None
@@ -138,21 +139,23 @@ class Wulpus:
         start_time = time.localtime(self._recording_start)
         timestring = time.strftime("%Y-%m-%d_%H-%M-%S", start_time)
         filename = "wulpus-data-" + timestring
+        # Ensure measurement directory exists
         module_path = os.path.dirname(inspect.getfile(wulpus))
         measurement_path = os.path.join(module_path, 'measurements')
-        os.chdir(measurement_path)
+        os.makedirs(measurement_path, exist_ok=True)
+        basepath = os.path.join(measurement_path, filename)
 
         # Check if filename exists (.npz gets added by .savez command)
-        while os.path.isfile(filename + '.npz'):
-            filename = filename + "_conflict"
+        while os.path.isfile(basepath + '.npz'):
+            basepath = basepath + "_conflict"
         # Save numpy data array to file
-        np.savez_compressed(filename,
+        np.savez_compressed(basepath,
                             data_arr=self._data,
                             acq_num_arr=self._data_acq_num,
                             tx_rx_id_arr=self._data_tx_rx_id,
                             record_start=np.array([self._recording_start]))
 
-        print('Data saved in ' + filename + '.npz')
+        print('Data saved in ' + basepath + '.npz')
 
     def get_latest_frame(self):
         return self._latest_frame

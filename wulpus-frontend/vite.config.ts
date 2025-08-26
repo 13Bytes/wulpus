@@ -12,6 +12,14 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
+      "/logs": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "/configs": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
       "/ws": {
         target: "ws://localhost:8000",
         ws: true,

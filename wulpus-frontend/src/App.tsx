@@ -4,6 +4,7 @@ import { ConnectionPanel } from './ConnectionPanel';
 import { Graph } from './Graph';
 import { TxRxConfigPanel } from './TxRxConfig';
 import { USConfigPanel } from './UsConfig';
+import { ConfigFilesPanel } from './ConfigFilesPanel';
 import type { DataFrame, Status, TxRxConfig, UsConfig, WulpusConfig } from './websocket-types';
 
 function App() {
@@ -72,6 +73,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
+      <div className="border-b bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
+          <h1 className="text-lg font-semibold">Wulpus Dashboard</h1>
+          <a href="/data" className="text-sm text-blue-600 hover:underline">Recorded logs</a>
+        </div>
+      </div>
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
         <section className="lg:col-span-1 space-y-3">
           <div className="bg-white rounded-lg shadow">
@@ -90,6 +97,16 @@ function App() {
 
           <div className="bg-white rounded-lg shadow">
             <TxRxConfigPanel txRxConfigs={txRxConfigs} setTxRxConfigs={setTxRxConfigs} />
+          </div>
+
+          <div className="bg-white rounded-lg shadow">
+            <ConfigFilesPanel
+              effectiveConfig={effectiveConfig}
+              applyConfig={(conf) => {
+                if (conf?.tx_rx_config) setTxRxConfigs(conf.tx_rx_config);
+                if (conf?.us_config) setUsConfig(conf.us_config);
+              }}
+            />
           </div>
         </div>
       </main>
