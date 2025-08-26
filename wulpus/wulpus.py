@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import os
 import time
 from enum import IntEnum
@@ -6,13 +7,10 @@ from typing import Union
 
 import numpy as np
 
-from wulpus.wulpus_config_models import WulpusConfig
-from wulpus.dongle_mock import WulpusDongleMock
-from wulpus.dongle import WulpusDongle
-from wulpus.websocket_manager import WebsocketManager
-from wulpus.wulpus_api import gen_conf_package, gen_restart_package
 import wulpus
-import inspect
+from wulpus.dongle import WulpusDongle
+from wulpus.wulpus_api import gen_conf_package, gen_restart_package
+from wulpus.wulpus_config_models import WulpusConfig
 
 
 class Status(IntEnum):

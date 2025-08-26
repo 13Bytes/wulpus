@@ -89,3 +89,26 @@ export function hilbertEnvelope(data: number[], nTaps = 101) {
   }
   return out;
 }
+
+
+export async function toggleFullscreen(plotContainerRef: React.RefObject<HTMLDivElement | null>) {
+  const el = plotContainerRef.current;
+  if (!el) return;
+  if (!document.fullscreenElement) {
+    const elWithVendors = el as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+      msRequestFullscreen?: () => Promise<void> | void;
+    };
+    if (elWithVendors.requestFullscreen) await elWithVendors.requestFullscreen();
+    else if (elWithVendors.webkitRequestFullscreen) await elWithVendors.webkitRequestFullscreen();
+    else if (elWithVendors.msRequestFullscreen) await elWithVendors.msRequestFullscreen();
+  } else {
+    const docWithVendors = document as Document & {
+      webkitExitFullscreen?: () => Promise<void> | void;
+      msExitFullscreen?: () => Promise<void> | void;
+    };
+    if (document.exitFullscreen) await document.exitFullscreen();
+    else if (docWithVendors.webkitExitFullscreen) await docWithVendors.webkitExitFullscreen();
+    else if (docWithVendors.msExitFullscreen) await docWithVendors.msExitFullscreen();
+  }
+}
