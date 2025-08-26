@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import '@material-symbols/font-400';
+@import "react-range-slider-input/dist/style.css";
 
 @layer base {
 
@@ -7,4 +8,11 @@
     [role="button"]:not([disabled]) {
         cursor: pointer;
     }
+}
+.range-slider .range-slider__thumb {
+    background: #008000;
+}
+
+.range-slider .range-slider__range {
+    background: #005f00;
 }

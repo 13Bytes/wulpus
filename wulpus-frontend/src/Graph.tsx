@@ -1,12 +1,13 @@
 import type Plotly from 'plotly.js';
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Plot from 'react-plotly.js';
 import { bandpassFIR, hilbertEnvelope, toggleFullscreen } from './helper';
 import type { DataFrame, UsConfig } from './websocket-types';
+import RangeSlider from 'react-range-slider-input';
 
 export function Graph(props: { dataFrame: DataFrame | null, bmodeBuffer: number[][], usConfig: UsConfig }) {
     const { dataFrame, bmodeBuffer, usConfig } = props;
-
+    const sampling_freq = usConfig.sampling_freq;
     const plotContainerRef = useRef<HTMLDivElement | null>(null);
     const [showBMode, setShowBMode] = useState<boolean>(false);
 
@@ -21,11 +22,17 @@ export function Graph(props: { dataFrame: DataFrame | null, bmodeBuffer: number[
     }, []);
 
     // compute filter/envelope just-in-time before rendering
-    const lowCutHz = usConfig.sampling_freq / 2 * 0.1;
-    const highCutHz = usConfig.sampling_freq / 2 * 0.9;
-    const filteredFrame = dataFrame ? bandpassFIR(dataFrame, usConfig.sampling_freq, lowCutHz, highCutHz, 31) : [];
+    const minLowCutHz = useCallback((sampling_freq: number) => sampling_freq / 2 * 0.1, []);
+    const maxHighCutHz = useCallback((sampling_freq: number) => sampling_freq / 2 * 0.9, []);
+    const [lowCutHz, setLowCutHz] = useState(minLowCutHz(sampling_freq));
+    const [highCutHz, setHighCutHz] = useState(maxHighCutHz(sampling_freq));
+    const filteredFrame = dataFrame ? bandpassFIR(dataFrame, sampling_freq, lowCutHz, highCutHz, 31) : [];
     const envelopeFrame = filteredFrame.length ? hilbertEnvelope(filteredFrame, 101) : [];
 
+    useEffect(() => {
+        setLowCutHz(minLowCutHz(sampling_freq));
+        setHighCutHz(maxHighCutHz(sampling_freq));
+    }, [sampling_freq, setHighCutHz, minLowCutHz, maxHighCutHz]);
 
     return (
         <div ref={plotContainerRef} className="bg-white p-4">
@@ -87,6 +94,29 @@ export function Graph(props: { dataFrame: DataFrame | null, bmodeBuffer: number[
                 >
                     {isFullscreen ? <span className="material-symbols-rounded">fullscreen_exit</span> : <span className="material-symbols-rounded">fullscreen</span>}
                 </button>
+
+                {!showBMode && (
+                    <div className="flex grow items-center ml-4 gap-3">
+                        <span>Filter: </span>
+                        <div className='flex grow max-w-96 items-center justify-start gap-2'>
+                            <span className='w-32'>{Math.round(lowCutHz / 1e4) / 100} MHz</span>
+                            <div className='w-full'>
+                                <RangeSlider
+                                    min={minLowCutHz(sampling_freq)}
+                                    max={maxHighCutHz(sampling_freq)}
+                                    step={sampling_freq / 1e4}
+                                    value={[lowCutHz, highCutHz]}
+                                    onInput={i => {
+                                        const [low, high] = i;
+                                        setLowCutHz(low);
+                                        setHighCutHz(high);
+                                    }}
+                                />
+                            </div>
+                            <span className='w-32'>{Math.round(highCutHz / 1e4) / 100} MHz</span>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>)
 }
