@@ -41,7 +41,7 @@ class WulpusMock(Wulpus):
     async def _measure(self):
         if self._replay_file is None:
             # Simulate reading random data from mocked dongle
-            super()._measure()
+            await super()._measure()
         else:
             # Replay file
             data = np.load(self._replay_file)
@@ -66,4 +66,5 @@ class WulpusMock(Wulpus):
                 index += 1
                 self._live_data_cnt = index
             self._acquisition_running = False
+            self.set_replay_file(None)
             self._status = Status.READY
