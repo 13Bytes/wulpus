@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { getBTHConnections, postConnect, postDisconnect, postStart, postStop, StatusLabel } from "./api";
+import { deactivateMock, getBTHConnections, postConnect, postDisconnect, postStart, postStop, StatusLabel } from "./api";
 import type { Status, WulpusConfig } from "./websocket-types";
 
 export function ConnectionPanel(props: { effectiveConfig: WulpusConfig, status: Status | null }) {
     const { effectiveConfig, status } = props;
     const [connections, setConnections] = useState<string[][]>([]);
     const [selectedPort, setSelectedPort] = useState<string>("");
+
+    const isMock = status?.mock ?? false;
 
     async function refreshConnections() {
         try {
@@ -40,7 +42,19 @@ export function ConnectionPanel(props: { effectiveConfig: WulpusConfig, status: 
 
     return (
         <div className="p-4 space-y-3">
-            <h2 className="font-medium">Connection</h2>
+            <div className="flex gap-2 flex-row items-center">
+                <h2 className="font-medium grow">Connection {isMock ? ' (Simulation)' : ''}</h2>
+                {isMock &&
+                    <>
+                        <button
+                            onClick={deactivateMock}
+                            className="font-medium text-red-500 border-1 px-2 border-red-500 hover:bg-gray-50 rounded"
+                        >
+                            Stop Simulation
+                        </button>
+                    </>
+                }
+            </div>
             <div className="flex flex-col space-y-2">
                 <div className="flex flex-row flex-nowrap items-center space-x-2">
                     <select className="border rounded px-2 py-1 w-52"

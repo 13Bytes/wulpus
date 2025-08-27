@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from "react-router";
+import { replayFile } from './api';
 
 export function LogsPage() {
     const [files, setFiles] = useState<string[] | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         let cancelled = false;
@@ -15,6 +18,17 @@ export function LogsPage() {
             .catch((e) => { if (!cancelled) setError(String(e)); });
         return () => { cancelled = true; };
     }, []);
+
+    const handleReplay = (filename: string) => {
+        // Implement replay functionality here
+        replayFile(filename)
+            .then(() => {
+                navigate("/");
+            })
+            .catch((e) => {
+                setError(String(e));
+            });
+    };
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -36,10 +50,16 @@ export function LogsPage() {
                         ) : (
                             <ul className="divide-y divide-gray-200">
                                 {files.map((f) => (
-                                    <li key={f} className="flex items-center justify-between py-2">
-                                        <span className="font-mono text-sm break-all">{f}</span>
-                                        <a
+                                    <li key={f} className="flex items-center gap-3 py-2">
+                                        <span className="font-mono text-sm break-all grow">{f}</span>
+                                        <button
                                             className="inline-flex items-center gap-2 rounded-md bg-blue-600 text-white text-sm px-3 py-1.5 hover:bg-blue-700"
+                                            onClick={() => handleReplay(f)}
+                                        >
+                                            Replay
+                                        </button>
+                                        <a
+                                            className="inline-flex items-center gap-2 rounded-md bg-gray-600 text-white text-sm px-3 py-1.5 hover:bg-gray-700"
                                             href={`/logs/${encodeURIComponent(f)}`}
                                             download
                                         >

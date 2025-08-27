@@ -26,8 +26,8 @@ class Wulpus:
     def __init__(self):
         self._config: Union[WulpusConfig, None] = None
         self._status: Status = Status.NOT_CONNECTED
-        # self._dongle = WulpusDongle()
-        self._dongle = WulpusDongleMock()
+        self._dongle = WulpusDongle()
+        # self._dongle = WulpusDongleMock()
         self._last_connection: str = ''
         self._latest_frame: Union[np.ndarray, None] = None
         self._data:  Union[np.ndarray, None] = None
@@ -90,7 +90,7 @@ class Wulpus:
 
         if self._dongle.send_config(bytes_config):
             self._status = Status.RUNNING
-            asyncio.create_task(self.__measure())
+            asyncio.create_task(self._measure())
         else:
             self._status = Status.NOT_CONNECTED
 
@@ -103,7 +103,7 @@ class Wulpus:
     def set_new_measurement_event(self, event: asyncio.Event):
         self._new_measurement = event
 
-    async def __measure(self):
+    async def _measure(self):
         self._recording_start = time.time()
         number_of_acq = self._config.us_config.num_acqs
         num_samples = self._config.us_config.num_samples
@@ -132,10 +132,11 @@ class Wulpus:
         self._data = self._data[:, :data_cnt]
         self._data_acq_num = self._data_acq_num[:data_cnt]
         self._data_tx_rx_id = self._data_tx_rx_id[:data_cnt]
+        self._acquisition_running = False
         self._status = Status.READY
-        self.__save_measurement()
+        self._save_measurement()
 
-    def __save_measurement(self):
+    def _save_measurement(self):
         start_time = time.localtime(self._recording_start)
         timestring = time.strftime("%Y-%m-%d_%H-%M-%S", start_time)
         filename = "wulpus-data-" + timestring

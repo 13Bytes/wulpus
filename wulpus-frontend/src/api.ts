@@ -1,5 +1,7 @@
 // Simple API client for the FastAPI backend
 
+import type { WulpusConfig } from "./websocket-types";
+
 export type ConnectResponse = { ok: string } | { [key: string]: string };
 
 // Use Vite proxy in dev to avoid CORS; see vite.config.ts
@@ -54,6 +56,23 @@ export async function postStop(): Promise<ConnectResponse> {
     });
     if (!res.ok) throw new Error(`POST /stop failed: ${res.status}`);
     return res.json();
+}
+
+export async function deactivateMock(): Promise<ConnectResponse> {
+    const res = await fetch(`${BASE_URL}/deactivate-mock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`POST /deactivate-mock failed: ${res.status}`);
+    return res.json();
+}
+
+export async function replayFile(filename: string): Promise<void> {
+    const res = await fetch(`${BASE_URL}/replay/${encodeURIComponent(filename)}`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(await res.text());
 }
 
 export async function getLogs(): Promise<string[]> {

@@ -1,22 +1,21 @@
 import asyncio
 import inspect
-import os
-from typing import List
-import time
 import json
-
-
+import os
+import time
+from typing import List, Optional
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
-from typing import Optional
+from fastapi import (FastAPI, File, HTTPException, UploadFile, WebSocket,
+                     WebSocketDisconnect)
 from fastapi.responses import FileResponse
-
 from helper import check_if_filereq_is_legitimate, ensure_dir
+
 import wulpus as wulpus_pkg
-from wulpus.wulpus_config_models import ComPort, WulpusConfig
 from wulpus.websocket_manager import WebsocketManager
 from wulpus.wulpus import Wulpus
+from wulpus.wulpus_config_models import ComPort, TxRxConfig, UsConfig, WulpusConfig
+from wulpus.wulpus_mock import WulpusMock
 
 MEASUREMENTS_DIR = os.path.join(os.path.dirname(
     inspect.getfile(wulpus_pkg)), 'measurements')
@@ -24,9 +23,12 @@ CONFIG_DIR = os.path.join(os.path.dirname(
     inspect.getfile(wulpus_pkg)), 'configs')
 
 wulpus = Wulpus()
+wulpus_mock = WulpusMock()
+
 manager = WebsocketManager(wulpus)
 app = FastAPI()
 global_send_data_task = None
+
 
 @app.get("/")
 def root():
@@ -36,33 +38,33 @@ def root():
 @app.post("/start")
 async def start(config: WulpusConfig):
     try:
-        wulpus.connect()
+        manager.get_wulpus().connect()
     except ValueError as e:
         return {"connection-error": str(e)}
-    wulpus.set_config(config)
-    await wulpus.start()
+    manager.get_wulpus().set_config(config)
+    await manager.get_wulpus().start()
     return {"ok": "ok"}
 
 
 @app.post("/stop")
 def stop():
-    wulpus.stop()
+    manager.get_wulpus().stop()
     return {"ok": "ok"}
 
 
 @app.get("/connections")
 def get_connections():
-    return wulpus.get_connection_options()
+    return manager.get_wulpus().get_connection_options()
 
 
 @app.post("/connect")
 def connect(conf: ComPort):
-    wulpus.connect(conf.com_port)
+    manager.get_wulpus().connect(conf.com_port)
 
 
 @app.post("/disconnect")
 def disconnect():
-    wulpus.disconnect()
+    manager.get_wulpus().disconnect()
 
 
 @app.websocket("/ws")
@@ -72,10 +74,14 @@ async def websocket_endpoint(websocket: WebSocket):
     asyncio.create_task(manager.send_status(websocket))
     if global_send_data_task is None or global_send_data_task.done():
         new_measurement_event = asyncio.Event()
+
         wulpus.set_new_measurement_event(new_measurement_event)
+        wulpus_mock.set_new_measurement_event(new_measurement_event)
+
         global_send_data_task = asyncio.create_task(
             manager.send_data(new_measurement_event))
-    latest_frame = wulpus.get_latest_frame()
+
+    latest_frame = manager.get_wulpus().get_latest_frame()
     if latest_frame is not None:
         await manager.broadcast_json(latest_frame.tolist())
     try:
@@ -171,6 +177,27 @@ def delete_config(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
+
+@app.post("/deactivate-mock")
+def deactivate_mock():
+    wulpus_mock.stop()
+    manager.set_wulpus(wulpus)
+    return {"ok": "ok"}
+
+
+@app.post("/replay/{filename}")
+async def replay_file(filename: str):
+    # Build a minimal default config: one empty TxRxConfig and a UsConfig with its own defaults
+    default_config = WulpusConfig(
+        tx_rx_config=[TxRxConfig()], us_config=UsConfig())
+    wulpus.stop()
+    ensure_dir(MEASUREMENTS_DIR)
+    manager.set_wulpus(wulpus_mock)
+    filepath = check_if_filereq_is_legitimate(
+        filename, MEASUREMENTS_DIR, '.npz')
+    wulpus_mock.set_config(default_config)
+    wulpus_mock.set_replay_file(filepath)
+    await wulpus_mock.start()
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

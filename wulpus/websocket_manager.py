@@ -16,6 +16,12 @@ class WebsocketManager:
         self.active_connections: list[WebSocket] = []
         self.wulpus = _wulpus
 
+    def set_wulpus(self, wulpus: Wulpus):
+        self.wulpus = wulpus
+
+    def get_wulpus(self) -> Wulpus:
+        return self.wulpus
+
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
@@ -54,4 +60,5 @@ class WebsocketManager:
             await new_measurement_event.wait()
             new_measurement_event.clear()
             data = self.wulpus.get_latest_frame()
-            await self.broadcast_json(data.tolist())
+            if data is not None:
+                await self.broadcast_json(data.tolist())

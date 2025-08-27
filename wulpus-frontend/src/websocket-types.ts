@@ -35,6 +35,7 @@ export type WulpusConfig = {
 };
 
 export type Status = {
+    mock?: boolean;
     status: number; // 0.., maps to backend Status enum
     bluetooth: string;
     us_config: UsConfig | null;
