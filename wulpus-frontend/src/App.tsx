@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import useWebSocket from 'react-use-websocket';
 import { ConnectionPanel } from './ConnectionPanel';
 import { Graph } from './Graph';
@@ -6,6 +7,9 @@ import { TxRxConfigPanel } from './TxRxConfig';
 import { USConfigPanel } from './UsConfig';
 import { ConfigFilesPanel } from './ConfigFilesPanel';
 import type { DataFrame, Status, TxRxConfig, UsConfig, WulpusConfig } from './websocket-types';
+import { getInitialConfig } from './helper';
+
+export const LOCAL_KEY = 'wulpus-config-v1';
 
 function App() {
 
@@ -21,28 +25,8 @@ function App() {
   const [bmodeBuffer, setBmodeBuffer] = useState<number[][]>(() => []);
 
   // WulpusConfig state
-  const [txRxConfigs, setTxRxConfigs] = useState<TxRxConfig[]>([{ config_id: 0, tx_channels: [0], rx_channels: [0], optimized_switching: true }]);
-  const [usConfig, setUsConfig] = useState<UsConfig>({
-    num_acqs: 400,
-    dcdc_turnon: 100,
-    meas_period: 321965,
-    trans_freq: 2250000,
-    pulse_freq: 2250000,
-    num_pulses: 1,
-    sampling_freq: 8000000,
-    num_samples: 400,
-    rx_gain: 3.5,
-    num_txrx_configs: 1,
-    tx_configs: [0],
-    rx_configs: [1],
-    start_hvmuxrx: 500,
-    start_ppg: 500,
-    turnon_adc: 5,
-    start_pgainbias: 5,
-    start_adcsampl: 503,
-    restart_capt: 3000,
-    capt_timeout: 3000,
-  });
+  const [txRxConfigs, setTxRxConfigs] = useState<TxRxConfig[]>(getInitialConfig().tx_rx_config);
+  const [usConfig, setUsConfig] = useState<UsConfig>(getInitialConfig().us_config);
 
   const effectiveConfig: WulpusConfig = useMemo(() => ({
     tx_rx_config: txRxConfigs,
@@ -53,6 +37,21 @@ function App() {
       rx_configs: txRxConfigs.map((c) => c.config_id),
     },
   }), [txRxConfigs, usConfig]);
+
+  const saveConfigToLocalStorage = useCallback((config: WulpusConfig) => {
+    try {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(config));
+    } catch (e) {
+      toast.error('Failed to store config in browser (localStorage)');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (effectiveConfig) {
+      saveConfigToLocalStorage(effectiveConfig)
+    }
+  }, [effectiveConfig, saveConfigToLocalStorage])
+
 
   useEffect(() => {
     if (lastJsonMessage) {
