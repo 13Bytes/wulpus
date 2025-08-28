@@ -104,7 +104,7 @@ def list_logs() -> List[str]:
         return []
 
 
-@app.get("/api/logs/{filename}")
+@app.get("/logs/{filename}")
 def download_log(filename: str):
     """Download a specific measurement file by filename."""
     ensure_dir(MEASUREMENTS_DIR)
