@@ -6,17 +6,18 @@ import time
 from typing import List, Optional
 
 import uvicorn
-from fastapi import (FastAPI, File, HTTPException, UploadFile, WebSocket,
-                     WebSocketDisconnect, Request)
-from fastapi.staticfiles import StaticFiles
+from fastapi import (FastAPI, File, HTTPException, Request, UploadFile,
+                     WebSocket, WebSocketDisconnect)
 from fastapi.responses import FileResponse
-from helper import check_if_filereq_is_legitimate, ensure_dir
+from fastapi.staticfiles import StaticFiles
+from wulpus.helper import check_if_filereq_is_legitimate, ensure_dir
+from wulpus.websocket_manager import WebsocketManager
+from wulpus.wulpus_config_models import (ComPort, TxRxConfig, UsConfig,
+                                         WulpusConfig)
+from wulpus.wulpus_mock import WulpusMock
 
 import wulpus as wulpus_pkg
-from wulpus.websocket_manager import WebsocketManager
 from wulpus.wulpus import Wulpus
-from wulpus.wulpus_config_models import ComPort, TxRxConfig, UsConfig, WulpusConfig
-from wulpus.wulpus_mock import WulpusMock
 
 MEASUREMENTS_DIR = os.path.join(os.path.dirname(
     inspect.getfile(wulpus_pkg)), 'measurements')

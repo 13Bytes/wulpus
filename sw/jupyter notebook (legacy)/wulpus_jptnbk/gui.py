@@ -24,7 +24,7 @@ import time
 from threading import Thread
 import os.path
 
-from wulpus.dongle import WulpusDongle
+from wulpus_jptnbk.dongle import WulpusDongle
 
 # plt.ioff()
 

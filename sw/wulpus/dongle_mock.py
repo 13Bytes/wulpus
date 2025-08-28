@@ -15,7 +15,9 @@
    SPDX-License-Identifier: Apache-2.0
 """
 
+import time
 import serial
+import asyncio
 from serial.tools.list_ports import comports
 from serial.tools.list_ports_common import ListPortInfo
 import numpy as np
@@ -44,7 +46,7 @@ class WulpusDongleMock(WulpusDongle):
         ports = comports()
         return sorted(ports)
 
-    def open(self, device: ListPortInfo = None):
+    def open(self, device: ListPortInfo = None, device_str: str = None):
         """
         Open the device connection.
         """
@@ -69,6 +71,7 @@ class WulpusDongleMock(WulpusDongle):
         """
         Mock: Return random data with the same structure as the original.
         """
+        time.sleep(0.2)  # Simulate some delay
         rf_arr = np.random.randint(
             1, 1001, size=ACQ_LENGTH_SAMPLES, dtype="<i2")
         tx_rx_id = 0
@@ -76,3 +79,6 @@ class WulpusDongleMock(WulpusDongle):
 
         self.acq_num += 1
         return rf_arr, acq_num, tx_rx_id
+
+    def get_status(self):
+        return "Dongle is mocked!"

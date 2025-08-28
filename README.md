@@ -109,7 +109,7 @@ Thanks to all the people who contributed to the WULPUS platform:
 - [Cédric Hirschi](https://www.linkedin.com/in/c%C3%A9dric-cyril-hirschi-09624021b/) (GUI improvements, Documentation)
 - [Josquin Tille](https://www.linkedin.com/in/josquin-tille-829a341a7/) (Silicone package design, Documentation)
 - [William Bruderer](https://www.linkedin.com/in/william-bruderer-59ba9b26b/) (Documentation)
-
+- [Louis Dod](https://github.com/13Bytes) (GUI Rework)
 
 # License
 The following files are released under Apache License 2.0 (`Apache-2.0`) (see `sw/LICENSE`):
