@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from "react-router";
-import { replayFile } from './api';
+import { BASE_URL, replayFile } from './api';
 
 export function LogsPage() {
     const [files, setFiles] = useState<string[] | null>(null);
@@ -9,7 +9,7 @@ export function LogsPage() {
 
     useEffect(() => {
         let cancelled = false;
-        fetch('/logs')
+        fetch(`${BASE_URL}/logs`)
             .then(async (res) => {
                 if (!res.ok) throw new Error(await res.text());
                 return res.json();

@@ -1,11 +1,9 @@
 // Simple API client for the FastAPI backend
 
-import type { WulpusConfig } from "./websocket-types";
-
 export type ConnectResponse = { ok: string } | { [key: string]: string };
 
 // Use Vite proxy in dev to avoid CORS; see vite.config.ts
-const BASE_URL = "/api";
+export const BASE_URL = "/api";
 
 export async function getBTHConnections(): Promise<string[][]> {
     const res = await fetch(`${BASE_URL}/connections`);
@@ -76,7 +74,7 @@ export async function replayFile(filename: string): Promise<void> {
 }
 
 export async function getLogs(): Promise<string[]> {
-    const res = await fetch('/logs');
+    const res = await fetch(`${BASE_URL}/logs`);
     if (!res.ok) throw new Error(await res.text());
     return res.json();
 }

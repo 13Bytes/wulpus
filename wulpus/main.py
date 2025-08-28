@@ -7,7 +7,8 @@ from typing import List, Optional
 
 import uvicorn
 from fastapi import (FastAPI, File, HTTPException, UploadFile, WebSocket,
-                     WebSocketDisconnect)
+                     WebSocketDisconnect, Request)
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from helper import check_if_filereq_is_legitimate, ensure_dir
 
@@ -21,6 +22,8 @@ MEASUREMENTS_DIR = os.path.join(os.path.dirname(
     inspect.getfile(wulpus_pkg)), 'measurements')
 CONFIG_DIR = os.path.join(os.path.dirname(
     inspect.getfile(wulpus_pkg)), 'configs')
+FRONTEND_DIR = os.path.join(os.path.dirname(
+    inspect.getfile(wulpus_pkg)), 'production-frontend')
 
 wulpus = Wulpus()
 wulpus_mock = WulpusMock()
@@ -30,12 +33,7 @@ app = FastAPI()
 global_send_data_task = None
 
 
-@app.get("/")
-def root():
-    return ["Welcome to Wulpus - In the future you will be greeted by a beautiful UI "]
-
-
-@app.post("/start")
+@app.post("/api/start")
 async def start(config: WulpusConfig):
     try:
         manager.get_wulpus().connect()
@@ -46,23 +44,23 @@ async def start(config: WulpusConfig):
     return {"ok": "ok"}
 
 
-@app.post("/stop")
+@app.post("/api/stop")
 def stop():
     manager.get_wulpus().stop()
     return {"ok": "ok"}
 
 
-@app.get("/connections")
+@app.get("/api/connections")
 def get_connections():
     return manager.get_wulpus().get_connection_options()
 
 
-@app.post("/connect")
+@app.post("/api/connect")
 def connect(conf: ComPort):
     manager.get_wulpus().connect(conf.com_port)
 
 
-@app.post("/disconnect")
+@app.post("/api/disconnect")
 def disconnect():
     manager.get_wulpus().disconnect()
 
@@ -93,7 +91,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await manager.broadcast_text("A Client left the chat")
 
 
-@app.get("/logs", response_model=List[str])
+@app.get("/api/logs", response_model=List[str])
 def list_logs() -> List[str]:
     """Return list of saved measurement files (npz) relative names."""
     ensure_dir(MEASUREMENTS_DIR)
@@ -106,7 +104,7 @@ def list_logs() -> List[str]:
         return []
 
 
-@app.get("/logs/{filename}")
+@app.get("/api/logs/{filename}")
 def download_log(filename: str):
     """Download a specific measurement file by filename."""
     ensure_dir(MEASUREMENTS_DIR)
@@ -115,7 +113,7 @@ def download_log(filename: str):
     return FileResponse(filepath, media_type='application/octet-stream', filename=filename)
 
 
-@app.get("/configs", response_model=List[str])
+@app.get("/api/configs", response_model=List[str])
 def list_configs() -> List[str]:
     """Return list of saved config files (json) relative names."""
     ensure_dir(CONFIG_DIR)
@@ -128,7 +126,7 @@ def list_configs() -> List[str]:
         return []
 
 
-@app.get("/configs/{filename}")
+@app.get("/api/configs/{filename}")
 def download_config(filename: str):
     """Download a specific config file by filename."""
     ensure_dir(CONFIG_DIR)
@@ -137,7 +135,7 @@ def download_config(filename: str):
     return FileResponse(filepath, media_type='application/octet-stream', filename=filename)
 
 
-@app.post("/configs")
+@app.post("/api/configs")
 async def save_config(config: WulpusConfig, name: Optional[str] = None):
     """Save the provided config JSON to a file in the configs directory."""
     ensure_dir(CONFIG_DIR)
@@ -163,7 +161,7 @@ async def save_config(config: WulpusConfig, name: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.delete("/configs/{filename}")
+@app.delete("/api/configs/{filename}")
 def delete_config(filename: str):
     """Delete a specific config file by filename."""
     ensure_dir(CONFIG_DIR)
@@ -178,14 +176,14 @@ def delete_config(filename: str):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.post("/deactivate-mock")
+@app.post("/api/deactivate-mock")
 def deactivate_mock():
     wulpus_mock.stop()
     manager.set_wulpus(wulpus)
     return {"ok": "ok"}
 
 
-@app.post("/replay/{filename}")
+@app.post("/api/replay/{filename}")
 async def replay_file(filename: str):
     # Build a minimal default config: one empty TxRxConfig and a UsConfig with its own defaults
     default_config = WulpusConfig(
@@ -198,6 +196,15 @@ async def replay_file(filename: str):
     wulpus_mock.set_config(default_config)
     wulpus_mock.set_replay_file(filepath)
     await wulpus_mock.start()
+
+app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIR,
+          'assets')), name="assets")
+
+
+@app.get("/{full_path:path}")
+async def frontend_fallback(full_path: str, request: Request):
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    return FileResponse(index_path)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

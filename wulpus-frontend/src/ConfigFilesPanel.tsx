@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import type { WulpusConfig } from './websocket-types';
+import { BASE_URL } from './api';
 
 type Props = {
     effectiveConfig: WulpusConfig;
@@ -8,19 +9,19 @@ type Props = {
 };
 
 async function listConfigs(): Promise<string[]> {
-    const res = await fetch('/configs');
+    const res = await fetch(`${BASE_URL}/configs`);
     if (!res.ok) throw new Error(await res.text());
     return res.json();
 }
 
 async function downloadConfig(filename: string): Promise<WulpusConfig> {
-    const res = await fetch(`/configs/${encodeURIComponent(filename)}`);
+    const res = await fetch(`${BASE_URL}/configs/${encodeURIComponent(filename)}`);
     if (!res.ok) throw new Error(await res.text());
     return res.json();
 }
 
 async function deleteConfig(filename: string): Promise<void> {
-    const res = await fetch(`/configs/${encodeURIComponent(filename)}`, {
+    const res = await fetch(`${BASE_URL}/configs/${encodeURIComponent(filename)}`, {
         method: 'DELETE',
     });
     if (!res.ok) throw new Error(await res.text());
@@ -53,7 +54,7 @@ export function ConfigFilesPanel({ effectiveConfig, applyConfig }: Props) {
         try {
             const params = new URLSearchParams();
             if (saveName.trim()) params.set('name', saveName.trim());
-            const res = await fetch(`/configs?${params.toString()}`, {
+            const res = await fetch(`${BASE_URL}/configs?${params.toString()}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(effectiveConfig),
@@ -158,7 +159,7 @@ export function ConfigFilesPanel({ effectiveConfig, applyConfig }: Props) {
                                 <span className="font-mono text-sm break-all">{f}</span>
                                 <div className="flex items-center gap-2">
                                     <button onClick={() => onLoad(f)} className="text-blue-600 text-sm hover:underline">Load into UI</button>
-                                    <a href={`/configs/${encodeURIComponent(f)}`} className="text-sm text-gray-700 hover:underline" download>Download</a>
+                                    <a href={`/api/configs/${encodeURIComponent(f)}`} className="text-sm text-gray-700 hover:underline" download>Download</a>
                                     <button onClick={() => onDelete(f)} className="text-red-600 text-sm hover:underline">Delete</button>
                                 </div>
                             </li>
