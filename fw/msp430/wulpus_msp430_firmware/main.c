@@ -45,12 +45,14 @@ static void getConfigPack(void);
 static void configAfterPowerUp(void);
 static void receiveUssConfPackage(void);
 static void usAcquisitionLoop(void);
+static void prepareUSSAcquisition();
 
 // Callbacks implementation
 static void hsPllUnlockCallback(void);
 static void saphSeqAcqDoneCallback(void);
 static void slowTimerCc2Callback(void);
 static void fastTimerCc0Callback(void);
+
 
 int main(void)
 {
@@ -72,24 +74,16 @@ int main(void)
         // Receive Uss configuration package from nRF
         receiveUssConfPackage();
 
-        // Configure Uss according to the new package
-        confUsSubsystem();
-
-        // Configure the events of slow and fast timers
-        confTimerSlowSwEvents();
-        confTimerFastSwEvents();
-
-        // Power up HV PCB
-        enableHvPcbSupply();
-        // Enable Power for OPA836
-        enableOpAmpSupply();
+        prepareUSSAcquisition();
 
         // Enter acquisition loop
         usAcquisitionLoop();
-
-    }
+        
+        // Power down HV PCB after finished recording
+        disableHvPcbSupply();
+        }
+    
     // Not reachable
-	
 	return 0;
 }
 
@@ -147,7 +141,6 @@ void configAfterPowerUp(void)
 }
 
 static void receiveUssConfPackage(void)
-
 {
     while(1)
     {
@@ -169,6 +162,20 @@ static void receiveUssConfPackage(void)
             }
         }
     }
+}
+
+static void prepareUSSAcquisition(){
+    // Configure Uss according to the new package
+    confUsSubsystem();
+
+    // Configure the events of slow and fast timers
+    confTimerSlowSwEvents();
+    confTimerFastSwEvents();
+
+    // Power up HV PCB
+    enableHvPcbSupply();
+    // Enable Power for OPA836
+    enableOpAmpSupply();
 }
 
 static void usAcquisitionLoop(void)
@@ -218,6 +225,23 @@ static void usAcquisitionLoop(void)
             {
                 pauseTimerSlowSwEvents();
                 return;
+            }
+
+            // Check the SPI RX buffer for restart command
+            if (isNewConfigCondition(usSpiGetRxPtr()))
+            {
+                pauseTimerSlowSwEvents();
+                if (extractUsConfig(usSpiGetRxPtr(), &msp_config))
+                {
+                    // Update Ultrasound config
+                    setNewUsConfig(&msp_config);
+                    prepareUSSAcquisition();
+                    continue;
+                }
+                else{
+                    // config invalid
+                    return;
+                }
             }
 
             // Wait for timer to elapse

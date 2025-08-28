@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-08-28
+
+### Added
+
+- A new web-based UI application (`wulpus-frontend/`, Vite + React) with panels for connection, TX/RX config, ultrasound config, logs, and live graphing.
+  It has feature-pairity with the jupyter notebook gui.
+- A new FastAPI backend service (`wulpus/`) exposing HTTP APIs and a WebSocket stream for live measurements; includes config and log endpoints.
+- Recording functionality and compressed logging that includes the recording start timestamp.
+- Mocked dongle, simulation, and replay modes to ease development and demonstrations.
+- User-defined graph filter, fullscreen mode for the graph
+- Configuration persistence across reloads via localStorage.
+
+### Changed
+
+- Moved the existing Gui from `/sw/wulpus` into `/sw/jupyter notebook (legacy)/wulpus_jptnbk`.
+- Frontend is now served by the FastAPI backend.
+- Refactored US acquisition setup; added capability to live-patch configuration during runtime.
+- Reworked and typed the `latest_frame` data structure, enabling reliable B-mode visualization.
+
+
 ## [1.1.0] - 2024-02-21
 
 ### Added
