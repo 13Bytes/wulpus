@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CHANNEL_SIZE } from './App';
 
 export function MultiNumField({ label, values, onChange, showChannelBoxes = false, color = 'bg-green-500' }: {
     label: string;
@@ -45,7 +46,7 @@ export function MultiNumField({ label, values, onChange, showChannelBoxes = fals
                     placeholder="e.g., 0,1,2" />
                 {showChannelBoxes && (
                     <div className="flex gap-1">
-                        {Array.from({ length: 8 }).map((_, ch) => {
+                        {Array.from({ length: CHANNEL_SIZE }).map((_, ch) => {
                             const active = values.includes(ch);
                             const base = `h-6 w-6 rounded flex items-center justify-center text-white text-xs ${active ? `${color} hover:saturate-80` : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`;
                             return (

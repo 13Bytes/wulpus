@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { deactivateMock, getBTHConnections, postConnect, postDisconnect, postStart, postStop, StatusLabel } from "./api";
+import { deactivateMock, getBTHConnections, postActivateMock, postConnect, postDisconnect, postStart, postStop, StatusLabel } from "./api";
 import type { Status, WulpusConfig } from "./websocket-types";
 
 export function ConnectionPanel(props: { effectiveConfig: WulpusConfig, status: Status | null }) {
@@ -54,6 +54,11 @@ export function ConnectionPanel(props: { effectiveConfig: WulpusConfig, status: 
                         </button>
                     </>
                 }
+                {!isMock && (
+                    <button onClick={postActivateMock} title="Activate Simulation" className="hover:bg-gray-100 text-gray-800 flex items-center rounded">
+                        <span className="material-symbols-rounded">smart_toy</span>
+                    </button>
+                )}
             </div>
             <div className="flex flex-col space-y-2">
                 <div className="flex flex-row flex-nowrap items-center space-x-2">
@@ -66,11 +71,8 @@ export function ConnectionPanel(props: { effectiveConfig: WulpusConfig, status: 
                             <option key={c[0]} value={c[0]}>{c[1]}</option>
                         ))}
                     </select>
-                    <button onClick={refreshConnections} title="Refresh" className="p-2 bg-gray-100 hover:bg-gray-200 rounded">
-                        <svg className="h-5 w-5 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 12a9 9 0 11-3.95-7.07" />
-                            <path d="M21 3v6h-6" />
-                        </svg>
+                    <button onClick={refreshConnections} title="Refresh" className="p-1 bg-gray-100 hover:bg-gray-200 flex items-center rounded">
+                        <span className="material-symbols-rounded">refresh</span>
                     </button>
                 </div>
                 <div className='flex space-x-2'>

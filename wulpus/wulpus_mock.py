@@ -50,9 +50,10 @@ class WulpusMock(Wulpus):
             self._data = data['data_arr']
             self._data_acq_num = data['acq_num_arr']
             self._data_tx_rx_id = data['tx_rx_id_arr']
-
             data_cnt = data['data_arr'].shape[1]
             num_samples = data['data_arr'].shape[0]
+            self._data_time = data['time_arr'] if 'time_arr' in data else np.zeros(
+                data_cnt, dtype=np.float32)
 
             self._config.us_config.num_acqs = data_cnt
             self._config.us_config.num_samples = num_samples
@@ -61,7 +62,8 @@ class WulpusMock(Wulpus):
             while index < data_cnt and self._acquisition_running:
                 await asyncio.sleep(0.1)
                 # await asyncio.sleep(self._config.us_config.meas_period/1e6)
-                self._latest_frame = self._data[:, index]
+                self._latest_frame = self._structure_measurement(
+                    self._data[:, index], self._data_tx_rx_id[index], self._data_time[index])
                 self._new_measurement.set()
                 index += 1
                 self._live_data_cnt = index

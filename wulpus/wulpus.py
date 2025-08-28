@@ -12,6 +12,7 @@ from wulpus.dongle import WulpusDongle
 from wulpus.dongle_mock import WulpusDongleMock
 from wulpus.wulpus_api import gen_conf_package, gen_restart_package
 from wulpus.wulpus_config_models import WulpusConfig
+from typing import TypedDict
 
 
 class Status(IntEnum):
@@ -22,6 +23,13 @@ class Status(IntEnum):
     ERROR = 9
 
 
+class Measurement(TypedDict):
+    data: list[float]
+    time: float
+    tx: list[int]
+    rx: list[int]
+
+
 class Wulpus:
     def __init__(self):
         self._config: Union[WulpusConfig, None] = None
@@ -29,10 +37,11 @@ class Wulpus:
         self._dongle = WulpusDongle()
         # self._dongle = WulpusDongleMock()
         self._last_connection: str = ''
-        self._latest_frame: Union[np.ndarray, None] = None
+        self._latest_frame: Union[Measurement, None] = None
         self._data:  Union[np.ndarray, None] = None
         self._data_acq_num:  Union[np.ndarray, None] = None
         self._data_tx_rx_id:  Union[np.ndarray, None] = None
+        self._data_time:  Union[np.ndarray, None] = None
         # Event to signal new measurement data for WebSocket clients
         self._new_measurement = asyncio.Event()
         self._recording_start = time.time()
@@ -110,17 +119,21 @@ class Wulpus:
         self._data = np.zeros((num_samples, number_of_acq), dtype='<i2')
         self._data_acq_num = np.zeros(number_of_acq, dtype='<u2')
         self._data_tx_rx_id = np.zeros(number_of_acq, dtype=np.uint8)
+        self._data_time = np.zeros(number_of_acq, dtype=np.float32)
         # Acquisition counter
         data_cnt = 0
         self._acquisition_running = True
         while data_cnt < number_of_acq and self._acquisition_running:
             # Receive the data
             data = self._dongle.receive_data()
+            data_timestamp = time.time() - self._recording_start
             if data is not None:
-                self._latest_frame = data[0]
+                self._latest_frame = self._structure_measurement(
+                    data[0], data[2], data_timestamp)
                 self._data[:, data_cnt] = data[0]
                 self._data_acq_num[data_cnt] = data[1]
                 self._data_tx_rx_id[data_cnt] = data[2]
+                self._data_time[data_cnt] = data_timestamp
                 self._new_measurement.set()
                 data_cnt += 1
                 self._live_data_cnt = data_cnt
@@ -131,10 +144,12 @@ class Wulpus:
         # Trim data to actual measured size
         self._data = self._data[:, :data_cnt]
         self._data_acq_num = self._data_acq_num[:data_cnt]
+        self._data_time = self._data_time[:data_cnt]
         self._data_tx_rx_id = self._data_tx_rx_id[:data_cnt]
         self._acquisition_running = False
         self._status = Status.READY
         self._save_measurement()
+
 
     def _save_measurement(self):
         start_time = time.localtime(self._recording_start)
@@ -153,6 +168,7 @@ class Wulpus:
         np.savez_compressed(basepath,
                             data_arr=self._data,
                             acq_num_arr=self._data_acq_num,
+                            time_arr=self._data_time,
                             tx_rx_id_arr=self._data_tx_rx_id,
                             record_start=np.array([self._recording_start]))
 
@@ -161,5 +177,11 @@ class Wulpus:
     def get_latest_frame(self):
         return self._latest_frame
 
-    async def get_measurement(self):
-        return self._data, self._data_acq_num, self._data_tx_rx_id
+    def _structure_measurement(self, _data: np.ndarray, _tx_rx_id: int, _time: np.float32) -> Measurement:
+        tx_rx_config = self._config.tx_rx_config[_tx_rx_id]
+        return Measurement(
+            data=_data.tolist(),
+            time=float(_time),
+            tx=tx_rx_config.tx_channels,
+            rx=tx_rx_config.rx_channels
+        )

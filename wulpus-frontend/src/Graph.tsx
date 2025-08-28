@@ -7,6 +7,7 @@ import RangeSlider from 'react-range-slider-input';
 
 export function Graph(props: { dataFrame: DataFrame | null, bmodeBuffer: number[][], usConfig: UsConfig }) {
     const { dataFrame, bmodeBuffer, usConfig } = props;
+    const data = dataFrame?.data ?? []
     const sampling_freq = usConfig.sampling_freq;
     const plotContainerRef = useRef<HTMLDivElement | null>(null);
     const [showBMode, setShowBMode] = useState<boolean>(false);
@@ -26,7 +27,7 @@ export function Graph(props: { dataFrame: DataFrame | null, bmodeBuffer: number[
     const maxHighCutHz = useCallback((sampling_freq: number) => sampling_freq / 2 * 0.9, []);
     const [lowCutHz, setLowCutHz] = useState(minLowCutHz(sampling_freq));
     const [highCutHz, setHighCutHz] = useState(maxHighCutHz(sampling_freq));
-    const filteredFrame = dataFrame ? bandpassFIR(dataFrame, sampling_freq, lowCutHz, highCutHz, 31) : [];
+    const filteredFrame = data ? bandpassFIR(data, sampling_freq, lowCutHz, highCutHz, 31) : [];
     const envelopeFrame = filteredFrame.length ? hilbertEnvelope(filteredFrame, 101) : [];
 
     useEffect(() => {
@@ -54,18 +55,18 @@ export function Graph(props: { dataFrame: DataFrame | null, bmodeBuffer: number[
                     <Plot
                         data={([
                             {
-                                x: dataFrame ? dataFrame.map((_, i) => i) : [],
-                                y: dataFrame ?? [],
+                                x: data ? data.map((_, i) => i) : [],
+                                y: data ?? [],
                                 type: 'scatter', mode: 'lines', name: 'Raw', line: { color: 'blue' },
                             },
                             {
-                                x: dataFrame ? dataFrame.map((_, i) => i) : [],
+                                x: data ? data.map((_, i) => i) : [],
                                 y: filteredFrame.length ? filteredFrame : [],
                                 type: 'scatter', mode: 'lines', name: 'Filter', line: { color: 'green' },
                                 visible: 'legendonly',
                             },
                             {
-                                x: dataFrame ? dataFrame.map((_, i) => i) : [],
+                                x: data ? data.map((_, i) => i) : [],
                                 y: envelopeFrame.length ? envelopeFrame : [],
                                 type: 'scatter', mode: 'lines', name: 'Envelope', line: { color: 'red' },
                                 visible: 'legendonly',

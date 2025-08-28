@@ -10,6 +10,7 @@ import type { DataFrame, Status, TxRxConfig, UsConfig, WulpusConfig } from './we
 import { getInitialConfig } from './helper';
 
 export const LOCAL_KEY = 'wulpus-config-v1';
+export const CHANNEL_SIZE = 8;
 
 function App() {
 
@@ -21,8 +22,7 @@ function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [dataFrame, setDataFrame] = useState<DataFrame | null>(null);
 
-  const bmodeBufferSize = 8; // keep a small ring buffer of recent frames for b-mode (8 rows)
-  const [bmodeBuffer, setBmodeBuffer] = useState<number[][]>(() => []);
+  const [bmodeBuffer, setBmodeBuffer] = useState<number[][]>(Array.from({ length: CHANNEL_SIZE }, () => []));
 
   // WulpusConfig state
   const [txRxConfigs, setTxRxConfigs] = useState<TxRxConfig[]>(getInitialConfig().tx_rx_config);
@@ -58,12 +58,17 @@ function App() {
       if ('status' in lastJsonMessage) {
         setStatus(lastJsonMessage);
       }
-      else if (Array.isArray(lastJsonMessage)) {
+      else if ('data' in lastJsonMessage) {
         setDataFrame(lastJsonMessage);
+        const rx_channel = lastJsonMessage.rx;
         // push into bmode buffer
         setBmodeBuffer((prev) => {
-          const next = [...prev, lastJsonMessage.slice()];
-          if (next.length > bmodeBufferSize) next.shift();
+          const next = [...prev];
+          const new_data = lastJsonMessage.data.slice()
+          for (const channel of rx_channel) {
+            if (channel >= CHANNEL_SIZE) break;
+            next[channel] = new_data;
+          }
           return next;
         });
       }

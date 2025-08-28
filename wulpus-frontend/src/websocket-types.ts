@@ -43,4 +43,9 @@ export type Status = {
     progress: number; // 0..1
 };
 
-export type DataFrame = number[];
+export type DataFrame = {
+    data: number[]
+    time: number[]
+    tx: number[]
+    rx: number[]
+}

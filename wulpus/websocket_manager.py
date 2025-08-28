@@ -61,4 +61,4 @@ class WebsocketManager:
             new_measurement_event.clear()
             data = self.wulpus.get_latest_frame()
             if data is not None:
-                await self.broadcast_json(data.tolist())
+                await self.broadcast_json(data)

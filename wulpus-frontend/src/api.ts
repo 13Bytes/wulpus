@@ -56,6 +56,14 @@ export async function postStop(): Promise<ConnectResponse> {
     return res.json();
 }
 
+export async function postActivateMock(): Promise<void> {
+    const res = await fetch(`${BASE_URL}/activate-mock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error(`POST /activate-mock failed: ${res.status}`);
+}
+
 export async function deactivateMock(): Promise<ConnectResponse> {
     const res = await fetch(`${BASE_URL}/deactivate-mock`, {
         method: "POST",

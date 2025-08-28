@@ -81,7 +81,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     latest_frame = manager.get_wulpus().get_latest_frame()
     if latest_frame is not None:
-        await manager.broadcast_json(latest_frame.tolist())
+        await manager.broadcast_json(latest_frame)
     try:
         while True:
             data = await websocket.receive_text()
@@ -174,6 +174,13 @@ def delete_config(filename: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/activate-mock")
+def activate_mock():
+    wulpus.stop()
+    manager.set_wulpus(wulpus_mock)
+    return {"ok": "ok"}
 
 
 @app.post("/api/deactivate-mock")

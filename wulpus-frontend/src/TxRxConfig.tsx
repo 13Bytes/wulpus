@@ -1,3 +1,4 @@
+import { CHANNEL_SIZE } from "./App";
 import { MultiNumField } from "./MultiNumField";
 import type { TxRxConfig } from './websocket-types';
 
@@ -28,12 +29,12 @@ export function TxRxConfigPanel(props: { txRxConfigs: TxRxConfig[], setTxRxConfi
                             <button onClick={() => removeTxRx(idx)} className="text-red-600 text-sm">Remove</button>
                         </div>
                         <div className="grid grid-cols-3 gap-3">
-                            <MultiNumField label="TX channels (0-7)"
+                            <MultiNumField label={`TX channels (0-${CHANNEL_SIZE - 1})`}
                                 values={cfg.tx_channels}
                                 onChange={(vals) => updateTxRx(idx, 'tx_channels', vals)}
                                 showChannelBoxes={true}
                                 color="bg-green-500" />
-                            <MultiNumField label="RX channels (0-7)"
+                            <MultiNumField label={`RX channels (0-${CHANNEL_SIZE - 1})`}
                                 values={cfg.rx_channels}
                                 onChange={(vals) => updateTxRx(idx, 'rx_channels', vals)}
                                 showChannelBoxes={true}
@@ -54,7 +55,7 @@ export function TxRxConfigPanel(props: { txRxConfigs: TxRxConfig[], setTxRxConfi
                         </div>
                     </div>
                 ))}
-                {txRxConfigs.length < 8 && (
+                {txRxConfigs.length < CHANNEL_SIZE && (
                     <button onClick={addTxRx} className="bg-gray-100 hover:bg-gray-200 rounded px-3 py-2 text-sm">Add configuration</button>
                 )}
             </div>

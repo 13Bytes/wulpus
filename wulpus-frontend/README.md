@@ -67,3 +67,5 @@ export default tseslint.config([
   },
 ])
 ```
+
+- using google symbols: https://fonts.google.com/icons
