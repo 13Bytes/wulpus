@@ -1,6 +1,7 @@
-numpy==1.23.5
-scipy==1.9.3
-pyserial==3.5
-pydantic==2.11
+numpy~=1.23.5
+scipy~=1.9.3
+pyserial~=3.5
+pydantic~=2.11
 websockets~=15.0
 pyinstaller~=6.15.0
+fastapi[standard]~=0.116.1
