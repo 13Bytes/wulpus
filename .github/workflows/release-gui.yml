@@ -31,7 +31,7 @@ jobs:
         uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
-          name: wulpus-all-in-one
+          name: wulpus-all-in-one.zip
           path: wulpus-all-in-one.zip
       - name: Release
         uses: softprops/action-gh-release@v2
