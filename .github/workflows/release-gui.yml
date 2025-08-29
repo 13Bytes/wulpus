@@ -41,3 +41,17 @@ jobs:
         if: github.ref_type == 'tag'
         with:
           files: wulpus-all-in-one.zip
+  Publish-Action:
+    runs-on: ubuntu-latest
+    needs: Build-Action
+    if: github.ref == 'refs/heads/ci-test'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{needs.Build-Action.outputs.output1}}
+      - name: Display structure of downloaded files
+        run: ls
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wulpus-all-in-one.zip
