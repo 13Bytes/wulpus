@@ -3,3 +3,4 @@ scipy==1.9.3
 pyserial==3.5
 pydantic==2.11
 websockets~=15.0
+pyinstaller~=6.15.0
