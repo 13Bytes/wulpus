@@ -1,9 +1,6 @@
 name: GUI Release
 on:
-  push:
-    branches:
-      - main
-      - ci-test
+  push
 jobs:
   Build-Action:
     runs-on: windows-latest
@@ -25,33 +22,19 @@ jobs:
       - name: Build .exe
         run: pyinstaller ./main.spec --noconfirm
         working-directory: ./sw/wulpus
-      - uses: actions/upload-artifact@v4
+      - name: Zip
+        uses: vimtor/action-zip@v1.2
+        with:
+          files: ./sw/wulpus/dist/main/
+          dest: wulpus-all-in-one.zip
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
           name: wulpus-all-in-one
-          path: ./sw/wulpus/dist/main/
-      - uses: actions/download-artifact@v4
-        if: github.ref_type == 'tag'
-        with:
-          artifact-ids: ${{ steps.artifact-upload-step.outputs.artifact-id }}
-      - name: Display structure of downloaded files
-        run: ls
+          path: wulpus-all-in-one.zip
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
-        with:
-          files: wulpus-all-in-one.zip
-  Publish-Action:
-    runs-on: ubuntu-latest
-    needs: Build-Action
-    if: github.ref == 'refs/heads/ci-test'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          artifact-ids: ${{needs.Build-Action.outputs.output1}}
-      - name: Display structure of downloaded files
-        run: ls
-      - name: Release
-        uses: softprops/action-gh-release@v2
         with:
           files: wulpus-all-in-one.zip
