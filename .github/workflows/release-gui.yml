@@ -22,19 +22,9 @@ jobs:
       - name: Build .exe
         run: pyinstaller ./main.spec --noconfirm
         working-directory: ./sw/wulpus
-      - name: Zip
-        uses: vimtor/action-zip@v1.2
-        with:
-          files: ./sw/wulpus/dist/main/
-          dest: wulpus-all-in-one.zip
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
-          name: wulpus-all-in-one.zip
-          path: wulpus-all-in-one.zip
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
-        with:
-          files: wulpus-all-in-one.zip
+          name: wulpus-all-in-one
+          path: ./sw/wulpus/dist/main/
+          compression-level: 8
