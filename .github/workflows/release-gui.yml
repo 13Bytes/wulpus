@@ -26,6 +26,18 @@ jobs:
         run: pyinstaller ./main.spec --noconfirm
         working-directory: ./sw/wulpus
       - uses: actions/upload-artifact@v4
+        id: artifact-upload-step
         with:
-          name: all-in-one
+          name: wulpus-all-in-one
           path: ./sw/wulpus/dist/main/
+      - uses: actions/download-artifact@v4
+        if: github.ref_type == 'tag'
+        with:
+          artifact-ids: ${{ steps.artifact-upload-step.outputs.artifact-id }}
+      - name: Display structure of downloaded files
+        run: ls
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          files: wulpus-all-in-one.zip
