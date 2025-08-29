@@ -1,0 +1,30 @@
+name: GUI Release
+on:
+  push
+jobs:
+  Build-Action:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install npm dependencies
+        run: npm ci
+        working-directory: ./sw/wulpus-frontend
+      - name: Build UI (react)
+        run: python build.py
+        working-directory: ./sw/wulpus-frontend
+      - name: Install python dependencies
+        run: pip install -r requirements.txt
+        working-directory: ./sw/wulpus
+      - name: Build .exe
+        run: pyinstaller ./main.spec --noconfirm
+        working-directory: ./sw/wulpus
+      - uses: actions/upload-artifact@v4
+        id: artifact-upload-step
+        with:
+          name: wulpus-all-in-one
+          path: ./sw/wulpus/dist/main/
+          compression-level: 8
