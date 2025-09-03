@@ -50,6 +50,7 @@ export function Graph(props: { dataFrame: DataFrame | null, bmodeBuffer: number[
                         useResizeHandler
                         style={{ width: "100%", height: "100%" }}
                         layout={{ autosize: true, margin: { t: 10, r: 10, b: 30, l: 40 } }}
+
                     />
                 ) : (
                     <Plot
@@ -79,6 +80,7 @@ export function Graph(props: { dataFrame: DataFrame | null, bmodeBuffer: number[
                             showlegend: true,
                             legend: { orientation: 'h', },
                             margin: { t: 10, r: 10, b: 30, l: 40 },
+                            yaxis: { range: [-2000, 2000] }
                         }}
                     />
                 )}
