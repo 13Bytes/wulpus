@@ -1,11 +1,12 @@
 import { LOCAL_KEY } from "./App";
 import type { WulpusConfig } from "./websocket-types";
 
-export const getInitialConfig = () => {
-  let defaultConfig: WulpusConfig = {
+
+export const getDefaultConfig = (): WulpusConfig => {
+  return {
     tx_rx_config: [{ config_id: 0, tx_channels: [0], rx_channels: [0], optimized_switching: true }],
     us_config: {
-      num_acqs: 400,
+      num_acqs: 500,
       dcdc_turnon: 100,
       meas_period: 321965,
       trans_freq: 2250000,
@@ -25,7 +26,11 @@ export const getInitialConfig = () => {
       restart_capt: 3000,
       capt_timeout: 3000,
     }
-  };
+  }
+}
+
+export const getInitialConfig = () => {
+  let defaultConfig: WulpusConfig = getDefaultConfig();
   const raw = localStorage.getItem(LOCAL_KEY);
   if (raw) {
     const parsed = JSON.parse(raw) as Partial<WulpusConfig>;
