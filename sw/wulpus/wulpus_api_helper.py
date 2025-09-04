@@ -56,14 +56,16 @@ def build_tx_rx_configs(wulpus_config: WulpusConfig):
         optimized_switching = cfg.optimized_switching
 
         # Build bitmasks
-        if len(tx_channels) == 0:
+        if tx_channels == None or len(tx_channels) == 0:
             tx_cfgs[i] = 0
+            tx_channels = []
         else:
             tx_cfgs[i] = np.bitwise_or.reduce(
                 np.left_shift(1, TX_MAP[tx_channels]))
 
-        if len(rx_channels) == 0:
+        if rx_channels == None or len(rx_channels) == 0:
             rx_cfgs[i] = 0
+            rx_channels = []
         else:
             rx_cfgs[i] = np.bitwise_or.reduce(
                 np.left_shift(1, RX_MAP[rx_channels]))
