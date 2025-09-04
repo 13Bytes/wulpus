@@ -9,6 +9,8 @@ from wulpus.wulpus_config_models import (PGA_GAIN_REG,
 START_BYTE_CONF_PACK = 250
 START_BYTE_RESTART = 251
 
+DATA_FILE_EXTENSION = '.zip'
+CONFIG_FILE_EXTENSION = '.json'
 
 def gen_restart_package():
     bytes_arr = np.array([START_BYTE_RESTART]).astype('<u1').tobytes()

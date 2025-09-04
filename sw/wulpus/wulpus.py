@@ -1,16 +1,22 @@
 import asyncio
 import inspect
+import io
 import os
 import time
+import json
 from enum import IntEnum
 from typing import Union
+from zipfile import ZipFile
 
+from matplotlib import dates
 import numpy as np
+import pandas as pd
 
+from wulpus.helper import ensure_dir
 import wulpus
 from wulpus.dongle import WulpusDongle
 from wulpus.dongle_mock import WulpusDongleMock
-from wulpus.wulpus_api import gen_conf_package, gen_restart_package
+from wulpus.wulpus_api import CONFIG_FILE_EXTENSION, DATA_FILE_EXTENSION, gen_conf_package, gen_restart_package
 from wulpus.wulpus_config_models import WulpusConfig
 from typing import TypedDict
 
@@ -25,7 +31,7 @@ class Status(IntEnum):
 
 class Measurement(TypedDict):
     data: list[float]
-    time: float
+    time: int
     tx: list[int]
     rx: list[int]
 
@@ -119,21 +125,21 @@ class Wulpus:
         self._data = np.zeros((num_samples, number_of_acq), dtype='<i2')
         self._data_acq_num = np.zeros(number_of_acq, dtype='<u2')
         self._data_tx_rx_id = np.zeros(number_of_acq, dtype=np.uint8)
-        self._data_time = np.zeros(number_of_acq, dtype=np.float32)
+        self._data_time = np.zeros(number_of_acq, dtype=np.uint64)
         # Acquisition counter
         data_cnt = 0
         self._acquisition_running = True
         while data_cnt < number_of_acq and self._acquisition_running:
             # Receive the data
             data = self._dongle.receive_data()
-            data_timestamp = time.time() - self._recording_start
+            timestamp = int(time.time_ns()/1e3)
             if data is not None:
                 self._latest_frame = self._structure_measurement(
-                    data[0], data[2], data_timestamp)
+                    data[0], data[2], timestamp)
                 self._data[:, data_cnt] = data[0]
                 self._data_acq_num[data_cnt] = data[1]
                 self._data_tx_rx_id[data_cnt] = data[2]
-                self._data_time[data_cnt] = data_timestamp
+                self._data_time[data_cnt] = timestamp
                 self._new_measurement.set()
                 data_cnt += 1
                 self._live_data_cnt = data_cnt
@@ -150,38 +156,53 @@ class Wulpus:
         self._status = Status.READY
         self._save_measurement()
 
-
     def _save_measurement(self):
         start_time = time.localtime(self._recording_start)
         timestring = time.strftime("%Y-%m-%d_%H-%M-%S", start_time)
-        filename = "wulpus-data-" + timestring
+        filename = "wulpus-" + timestring
         # Ensure measurement directory exists
         module_path = os.path.dirname(inspect.getfile(wulpus))
         measurement_path = os.path.join(module_path, 'measurements')
-        os.makedirs(measurement_path, exist_ok=True)
+        ensure_dir(measurement_path)
         basepath = os.path.join(measurement_path, filename)
 
         # Check if filename exists (.npz gets added by .savez command)
-        while os.path.isfile(basepath + '.npz'):
+        while os.path.isfile(basepath + DATA_FILE_EXTENSION):
             basepath = basepath + "_conflict"
-        # Save numpy data array to file
-        np.savez_compressed(basepath,
-                            data_arr=self._data,
-                            acq_num_arr=self._data_acq_num,
-                            time_arr=self._data_time,
-                            tx_rx_id_arr=self._data_tx_rx_id,
-                            record_start=np.array([self._recording_start]))
 
-        print('Data saved in ' + basepath + '.npz')
+        df = pd.DataFrame({
+            'measurement': [pd.Series(self._data[i]) for i in range(self._live_data_cnt)],
+            "tx": [self._config.tx_rx_config[i].tx_channels for i in self._data_tx_rx_id],
+            "rx": [self._config.tx_rx_config[i].rx_channels for i in self._data_tx_rx_id],
+            "aq_number": self._data_acq_num,
+            "log_version": 1,
+            "tx_rx_id": self._data_tx_rx_id
+        }, index=self._data_time)
+
+        # Expand measurement series into columns so they're all included in save-format (parquet)
+        measurement_expanded = pd.DataFrame(
+            [m.values for m in df['measurement']], index=df.index)
+        flattened_df = pd.concat(
+            [df.drop(columns=['measurement']), measurement_expanded], axis=1)
+        flattened_df.columns = [str(col) for col in flattened_df.columns]
+
+        with ZipFile(basepath + DATA_FILE_EXTENSION, 'w') as zf:
+            zf.writestr('config-0.json', self._config.model_dump_json())
+            # Write dataframe as parquet
+            buffer = io.BytesIO()
+            flattened_df.to_parquet(buffer)
+            zf.writestr('data.parquet', buffer.getvalue())
+
+        print('Data saved in ' + basepath + DATA_FILE_EXTENSION)
 
     def get_latest_frame(self):
         return self._latest_frame
 
-    def _structure_measurement(self, _data: np.ndarray, _tx_rx_id: int, _time: np.float32) -> Measurement:
+    def _structure_measurement(self, _data: np.ndarray, _tx_rx_id: int, _time: int) -> Measurement:
         tx_rx_config = self._config.tx_rx_config[_tx_rx_id]
         return Measurement(
             data=_data.tolist(),
-            time=float(_time),
+            time=int(_time),
             tx=tx_rx_config.tx_channels,
             rx=tx_rx_config.rx_channels
         )

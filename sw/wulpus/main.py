@@ -10,6 +10,7 @@ from fastapi import (FastAPI, File, HTTPException, Request, UploadFile,
                      WebSocket, WebSocketDisconnect)
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from wulpus.wulpus_api import CONFIG_FILE_EXTENSION, DATA_FILE_EXTENSION
 from wulpus.helper import check_if_filereq_is_legitimate, ensure_dir
 from wulpus.websocket_manager import WebsocketManager
 from wulpus.wulpus_config_models import (ComPort, TxRxConfig, UsConfig,
@@ -98,7 +99,7 @@ def list_logs() -> List[str]:
     ensure_dir(MEASUREMENTS_DIR)
     try:
         files = [f for f in os.listdir(
-            MEASUREMENTS_DIR) if f.lower().endswith('.npz')]
+            MEASUREMENTS_DIR) if f.lower().endswith(DATA_FILE_EXTENSION)]
         files.sort(reverse=True)
         return files
     except FileNotFoundError:
@@ -110,7 +111,7 @@ def download_log(filename: str):
     """Download a specific measurement file by filename."""
     ensure_dir(MEASUREMENTS_DIR)
     filepath = check_if_filereq_is_legitimate(
-        filename, MEASUREMENTS_DIR, '.npz')
+        filename, MEASUREMENTS_DIR, DATA_FILE_EXTENSION)
     return FileResponse(filepath, media_type='application/octet-stream', filename=filename)
 
 
@@ -120,7 +121,7 @@ def list_configs() -> List[str]:
     ensure_dir(CONFIG_DIR)
     try:
         files = [f for f in os.listdir(
-            CONFIG_DIR) if f.lower().endswith('.json')]
+            CONFIG_DIR) if f.lower().endswith(CONFIG_FILE_EXTENSION)]
         files.sort(reverse=True)
         return files
     except FileNotFoundError:
@@ -132,7 +133,7 @@ def download_config(filename: str):
     """Download a specific config file by filename."""
     ensure_dir(CONFIG_DIR)
     filepath = check_if_filereq_is_legitimate(
-        filename, CONFIG_DIR, '.json')
+        filename, CONFIG_DIR, CONFIG_FILE_EXTENSION)
     return FileResponse(filepath, media_type='application/octet-stream', filename=filename)
 
 
@@ -200,7 +201,7 @@ async def replay_file(filename: str):
     ensure_dir(MEASUREMENTS_DIR)
     manager.set_wulpus(wulpus_mock)
     filepath = check_if_filereq_is_legitimate(
-        filename, MEASUREMENTS_DIR, '.npz')
+        filename, MEASUREMENTS_DIR, DATA_FILE_EXTENSION)
     wulpus_mock.set_config(default_config)
     wulpus_mock.set_replay_file(filepath)
     await wulpus_mock.start()

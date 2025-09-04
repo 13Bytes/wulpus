@@ -39,7 +39,7 @@ class WebsocketManager:
             except RuntimeError:
                 self.disconnect(connection)
 
-    async def broadcast_json(self, message: json):
+    async def broadcast_json(self, message):
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
@@ -51,7 +51,7 @@ class WebsocketManager:
             while websocket.application_state == WebSocketState.CONNECTED:
                 status = self.wulpus.get_status()
                 await websocket.send_json(jsonable_encoder(status))
-                await asyncio.sleep(3)
+                await asyncio.sleep(1)
         except (RuntimeError, WebSocketDisconnect):  # Client disconnected
             return
 

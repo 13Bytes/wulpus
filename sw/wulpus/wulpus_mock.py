@@ -1,20 +1,23 @@
 import asyncio
 import inspect
+import io
 import json
 import os
 import time
 from enum import IntEnum
 from typing import Union
+from zipfile import ZipFile
 
 import numpy as np
-
-import wulpus as wulpus_pgk
-
+import pandas as pd
 from wulpus.dongle import WulpusDongle
-from wulpus.wulpus import Wulpus, Status
 from wulpus.dongle_mock import WulpusDongleMock
+from wulpus.helper import zip_to_dataframe
 from wulpus.wulpus_api import gen_conf_package, gen_restart_package
 from wulpus.wulpus_config_models import WulpusConfig
+
+import wulpus as wulpus_pgk
+from wulpus.wulpus import Status, Wulpus
 
 
 class WulpusMock(Wulpus):
@@ -43,25 +46,30 @@ class WulpusMock(Wulpus):
             # Simulate reading random data from mocked dongle
             await super()._measure()
         else:
-            # Replay file
-            data = np.load(self._replay_file)
+            # Replay from new zip format
             self._status = Status.RUNNING
             self._acquisition_running = True
-            self._data = data['data_arr']
-            self._data_acq_num = data['acq_num_arr']
-            self._data_tx_rx_id = data['tx_rx_id_arr']
-            data_cnt = data['data_arr'].shape[1]
-            num_samples = data['data_arr'].shape[0]
-            self._data_time = data['time_arr'] if 'time_arr' in data else np.zeros(
-                data_cnt, dtype=np.float32)
 
+            df, config = zip_to_dataframe(self._replay_file)
+
+            self._config = config
+
+            self._data = np.column_stack([
+                np.asarray(m, dtype=np.int16) for m in df['measurement']
+            ])
+            # Cast arrays to expected dtypes
+            self._data_acq_num = df['aq_number'].to_numpy(dtype='<u2')
+            self._data_tx_rx_id = df['tx_rx_id'].to_numpy(dtype=np.uint8)
+            self._data_time = df.index.to_numpy(dtype=np.uint64)
+            # Update number of measurements with actual recorded ones
+            data_cnt = self._data.shape[1]
+            num_samples = self._data.shape[0]
             self._config.us_config.num_acqs = data_cnt
             self._config.us_config.num_samples = num_samples
 
             index = 0
             while index < data_cnt and self._acquisition_running:
                 await asyncio.sleep(0.1)
-                # await asyncio.sleep(self._config.us_config.meas_period/1e6)
                 self._latest_frame = self._structure_measurement(
                     self._data[:, index], self._data_tx_rx_id[index], self._data_time[index])
                 self._new_measurement.set()

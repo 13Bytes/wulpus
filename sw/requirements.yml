@@ -12,4 +12,7 @@ dependencies:
   - pyserial=3.5
   - pydantic=2.11
   - websockets=15.0
+  - pandas=2.3
+  - tables=3.9
+  - pyarrow=21.0
 prefix: 
