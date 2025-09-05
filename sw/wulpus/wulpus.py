@@ -171,7 +171,7 @@ class Wulpus:
             basepath = basepath + "_conflict"
 
         df = pd.DataFrame({
-            'measurement': [pd.Series(self._data[i]) for i in range(self._live_data_cnt)],
+            'measurement': [pd.Series(self._data[:, i]) for i in range(self._live_data_cnt)],
             "tx": [self._config.tx_rx_config[i].tx_channels for i in self._data_tx_rx_id],
             "rx": [self._config.tx_rx_config[i].rx_channels for i in self._data_tx_rx_id],
             "aq_number": self._data_acq_num,
