@@ -1,13 +1,19 @@
+from __future__ import annotations
+
+import glob
+import inspect
+import io
 import json
 import os
+from typing import Tuple
 from zipfile import ZipFile
 
-from fastapi import HTTPException
-import pandas as pd
 import numpy as np
-import io
-
+import pandas as pd
+from fastapi import HTTPException
 from wulpus.wulpus_config_models import WulpusConfig
+
+import wulpus as wulpus_pkg
 
 
 def ensure_dir(dir: str) -> None:
@@ -32,7 +38,7 @@ def check_if_filereq_is_legitimate(req_name: str, system_dir: str, allowed_endin
     return path
 
 
-def zip_to_dataframe(path: str):
+def zip_to_dataframe(path: str) -> Tuple[pd.DataFrame, object]:
     with ZipFile(path, 'r') as zf:
         config_raw = json.loads(zf.read('config-0.json').decode('utf-8'))
         df_flat = pd.read_parquet(io.BytesIO(zf.read('data.parquet')))
@@ -45,10 +51,10 @@ def zip_to_dataframe(path: str):
     sample_cols = sorted(sample_cols, key=lambda c: int(c))
 
     # Rebuild `measurement` as a Series per row
-    measurements = [
+    measurements = list(
         pd.Series(row[sample_cols].to_numpy(copy=False))
         for _, row in df_flat.iterrows()
-    ]
+    )
 
     df = pd.DataFrame({
         'measurement': measurements,
@@ -61,3 +67,19 @@ def zip_to_dataframe(path: str):
 
     config = WulpusConfig.model_validate(config_raw)
     return df, config
+
+
+def find_latest_measurement_zip() -> str:
+    """Return path to the most recent .zip in the package measurements folder.
+
+    Raises FileNotFoundError if the folder or files don't exist.
+    """
+    measurement_dir = os.path.join(os.path.dirname(
+        inspect.getfile(wulpus_pkg)), 'measurements')
+    if not os.path.exists(measurement_dir):
+        raise FileNotFoundError(
+            f"Measurements directory not found: {measurement_dir}")
+    zip_files = glob.glob(os.path.join(measurement_dir, '*.zip'))
+    if not zip_files:
+        raise FileNotFoundError(f"No zip files found in {measurement_dir}")
+    return max(zip_files, key=os.path.getctime)
