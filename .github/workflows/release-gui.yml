@@ -17,6 +17,7 @@ jobs:
         run: python build.py
         working-directory: ./sw/wulpus-frontend
       - name: Install python dependencies
+        working-directory: ./sw/wulpus
         run: pip install -r requirements.txt
       - name: Build .exe
         working-directory: ./sw/wulpus
