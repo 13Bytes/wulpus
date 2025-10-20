@@ -54,4 +54,4 @@ jobs:
         with:
           tag_name: ${{ steps.tag_version.outputs.new_tag }}
           name: UI-Release ${{ steps.tag_version.outputs.new_tag }}
-          files: ./sw/wulpus/dist/main/*
+          body: Automated release of Wulpus GUI version ${{ steps.tag_version.outputs.new_tag }}. The release can be downloaded here [${{ steps.artifact-upload-step.outputs.artifact-url }}](${{ steps.artifact-upload-step.outputs.artifact-url }}) (github-login required)
