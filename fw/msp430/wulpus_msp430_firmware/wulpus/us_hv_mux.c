@@ -28,8 +28,8 @@ void hvMuxInit(void)
     // Set Pin 4 to output peripheral function, SPI CLK: SW_CLK
     // Set Pin 5 to output peripheral function, SPI MOSI (SIMO): SW_D_IN
     GPIO_setAsPeripheralModuleFunctionOutputPin(
-        GPIO_PORT_P5,
-        GPIO_PIN4 + GPIO_PIN5,
+        GPIO_PORT_HV_MUX_SPI,
+        GPIO_PIN_HV_MUX_CLK | GPIO_PIN_HV_MUX_MOSI,
         GPIO_SECONDARY_MODULE_FUNCTION);
 
     // Latch enable (SW_LE) signal will be manually controlled

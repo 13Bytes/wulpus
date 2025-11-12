@@ -181,23 +181,23 @@ void usSpiInit(void)
     // Select Port 1
     // Set Pin 2 to input peripheral function, SPI MOSI (SIMO)
     GPIO_setAsPeripheralModuleFunctionInputPin(
-        GPIO_PORT_P1,
-        GPIO_PIN2,
+        GPIO_PORT_NRF_SPI_MOSI,
+        GPIO_PIN_NRF_SPI_MOSI,
         GPIO_PRIMARY_MODULE_FUNCTION);
 
     // Select Port 1
     // Set Pin 3 to output peripheral function, SPI MISO (SOMI)
     GPIO_setAsPeripheralModuleFunctionOutputPin(
-        GPIO_PORT_P1,
-        GPIO_PIN3,
+        GPIO_PORT_NRF_SPI_MISO,
+        GPIO_PIN_NRF_SPI_MISO,
         GPIO_PRIMARY_MODULE_FUNCTION);
 
     // Select Port 2
     // Set Pin 0 to input peripheral function, SPI CLK
     // Set Pin 1 to input peripheral module Function, SPI CS
     GPIO_setAsPeripheralModuleFunctionInputPin(
-        GPIO_PORT_P2,
-        GPIO_PIN0 + GPIO_PIN1,
+        GPIO_PORT_NRF_SPI_CLK,
+        GPIO_PIN_NRF_SPI_CLK | GPIO_PIN_NRF_SPI_CS,
         GPIO_PRIMARY_MODULE_FUNCTION);
 
     // Select Port 4

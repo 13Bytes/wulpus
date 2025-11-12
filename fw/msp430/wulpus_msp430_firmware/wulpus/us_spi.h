@@ -25,9 +25,7 @@
 // 4 Bytes Header + 800 Bytes US frame
 #define BYTES_PR_XFER_TX 804
 
-// Defines for data ready signal
-#define GPIO_PORT_DATA_READY GPIO_PORT_P4
-#define GPIO_PIN_DATA_READY GPIO_PIN0
+#include "hardware.h"
 
 // Function to initiate DMA
 // The function initializes the DMA for the SPI peripheral.

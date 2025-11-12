@@ -23,13 +23,10 @@
 
 #include "driverlib.h"
 
+#include "hardware.h"
+
 // Delay in MCLK cycles
 #define DELAY_CYCLES    2
-
-
-#define LE_PIN_PORT     GPIO_PORT_P5
-#define LE_PIN          GPIO_PIN7
-
 
 void hvMuxInit(void);
 void hvMuxConfTx(uint16_t tx_config);

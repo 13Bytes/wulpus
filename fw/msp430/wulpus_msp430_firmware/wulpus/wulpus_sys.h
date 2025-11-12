@@ -23,17 +23,10 @@
 
 #include "driverlib.h"
 
+#include "hardware.h"
 #include "us_spi.h"
 #include "us_hv_mux.h"
 #include "uslib.h"
-
-// Defines for LED on Acquisition PCB
-#define GPIO_PORT_LED_MSP430  GPIO_PORT_P1
-#define GPIO_PIN_LED_MSP430   BIT5
-
-// Defines for BLE connection ready signal
-#define GPIO_PORT_BLE_READY   GPIO_PORT_P4
-#define GPIO_PIN_BLE_READY    GPIO_PIN4
 
 // MACROS to help with memory access
 
