@@ -13,9 +13,9 @@
 #include <hal/nrf_timer.h>
 #include <hal/nrf_spim.h>
 
-#define LED_NODE DT_ALIAS(led0)
-#define DATA_READY_NODE DT_ALIAS(data_ready)
-#define BLE_CNFG_READY_NODE DT_ALIAS(ble_cnfg_ready)
+#include "main.h"
+#include "testfunctions.h"
+
 const struct gpio_dt_spec ble_cnfg_ready = GPIO_DT_SPEC_GET(BLE_CNFG_READY_NODE, gpios);
 const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
 const struct gpio_dt_spec data_ready = GPIO_DT_SPEC_GET(DATA_READY_NODE, gpios);
@@ -25,20 +25,6 @@ LOG_MODULE_REGISTER(main);
 static K_MUTEX_DEFINE(tx_buffer_mutex);
 
 // --- SPIM -------------------------------------
-#define SPIM_INST_IDX 1
-#define SPI_1_PRIO 1
-#define BYTES_PR_XFER_RX 201
-#define BYTES_PR_XFER_TX 201
-#define SPI_NODE DT_NODELABEL(spi1)
-#define SPI_PINCTRL_NODE DT_CHILD(DT_PINCTRL_0(SPI_NODE, 0), group1)
-#define MOSI_PIN (DT_PROP_BY_IDX(SPI_PINCTRL_NODE, psels, 0) & 0x3F)
-#define MISO_PIN (DT_PROP_BY_IDX(SPI_PINCTRL_NODE, psels, 1) & 0x3F)
-#define SCK_PIN (DT_PROP_BY_IDX(SPI_PINCTRL_NODE, psels, 2) & 0x3F)
-#define SS_PIN 15
-#define CHUNKS_PER_FRAME 4
-#define MIN_INTERRUPT_INTERVAL_MS 15
-#define TRANSFER_INTERVAL_US 300 // Time between SPI transfers (300µs as in old firmware)
-
 static uint8_t m_tx_buffer[BYTES_PR_XFER_TX * CHUNKS_PER_FRAME] = {0};
 static uint8_t m_rx_buffer[BYTES_PR_XFER_RX * CHUNKS_PER_FRAME] = {0};
 
@@ -102,11 +88,7 @@ static void us_spi_init(void)
 }
 
 // --- Bluetooth LE -----------------------------
-#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
-#define BLE_PCKT_SEND_SIZE (BYTES_PR_XFER_RX * CHUNKS_PER_FRAME)
 static K_SEM_DEFINE(ble_tx_ready_sem, 1, 1);
-
 static struct bt_conn *current_conn;
 
 static const struct bt_data ad[] = {
@@ -116,16 +98,11 @@ static const struct bt_data ad[] = {
 static const struct bt_data sd[] = {
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
 };
-struct ble_data_t
-{
-    uint8_t data[BLE_PCKT_SEND_SIZE];
-    uint16_t len;
-};
 K_MSGQ_DEFINE(ble_tx_msgq, sizeof(struct ble_data_t), 15, 4);
 
 int start_advertise(void)
 {
-    LOG_INF("Starting advertising");
+    LOG_INF("starting advertising...");
     int err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
     if (err)
     {
@@ -229,14 +206,6 @@ static void spi_session_thread(void)
         {
             LOG_WRN("SPI session already in progress; skipping trigger");
             continue;
-        }
-
-        // Clear ble_cnfg_ready BEFORE SPI transfer to prevent MSP loop
-        bool was_sending_config = (gpio_pin_get_dt(&ble_cnfg_ready) > 0);
-        if (was_sending_config)
-        {
-            LOG_INF("Set ble_cnfg_ready to low (to not re-trigger MSP)");
-            gpio_pin_set_dt(&ble_cnfg_ready, 0);
         }
 
         LOG_INF("Starting SPI session - single 804-byte transfer");
@@ -409,110 +378,10 @@ static void ble_tx_thread(void)
     }
 }
 
-// // --- Test-stuff -------------------------------------
-// int send_random_data(const uint8_t tx_rx_id, const uint16_t meas_frame_nr)
-// {
-//     // first chunk sends 202 bytes, the other 3 chunks are 201 bytes
-//     // -> total 805 bytes of data
-//     uint8_t buf[BYTES_PR_XFER_TX + 1];
-//     for (unsigned frame = 0; frame < 4; frame++)
-//     {
-//         int bt_send_ret = 0;
-//         // // bt_rand is too slow : (
-//         // if (bt_rand(buf, sizeof(buf)) != 0)
-//         // {
-//         // 	LOG_WRN("bt_rand failed");
-//         // 	return -1;
-//         // }
-//         if (frame == 0)
-//         {
-//             /* first chunk [0xFF, tx_rx_id, acq_nr_L, acq_nr_H, data...] */
-//             buf[0] = 0xFF;
-//             buf[1] = tx_rx_id;
-//             buf[2] = (uint8_t)(meas_frame_nr & 0xFF);
-//             buf[3] = (uint8_t)(meas_frame_nr >> 8);
-
-//             bt_send_ret = bt_nus_send(NULL, buf, sizeof(buf));
-//         }
-//         else
-//         {
-//             bt_send_ret = bt_nus_send(NULL, buf, sizeof(buf) - 1);
-//         }
-//         if (bt_send_ret != 0)
-//         {
-//             LOG_WRN("bt_nus_send failed (err %d)", bt_send_ret);
-//             return -1;
-//         }
-//     }
-//     return 0;
-// }
-// static void rand_sender_thread(void)
-// {
-//     uint16_t meas_frame_nr = 0;
-
-//     static uint32_t send_count = 0;
-//     static uint64_t current_ms = 0;
-
-//     /* start time for the loop (ms) */
-//     int64_t loop_start_ms = k_uptime_get();
-//     int const LOG_INTERVAL_CNT = 1000;
-
-//     for (;;)
-//     {
-//         /* Only send when there is an active connection */
-//         if (current_conn != NULL)
-//         {
-//             int64_t run_start_ms = k_uptime_get();
-
-//             if (send_random_data(0x00, meas_frame_nr++) == 0)
-//             {
-//                 send_count++;
-//             }
-
-//             if ((send_count % LOG_INTERVAL_CNT) == 0)
-//             {
-//                 current_ms = k_uptime_get();
-//                 uint64_t total_elapsed_ms = current_ms - loop_start_ms;
-
-//                 const uint64_t bytes_per_call = 805ULL;
-//                 const uint64_t total_bytes = bytes_per_call * LOG_INTERVAL_CNT;
-
-//                 /* bytes per second = total_bytes * 1000 / total_elapsed_ms */
-//                 uint32_t bytes_per_sec = (uint32_t)(total_bytes * 1000ULL / total_elapsed_ms);
-//                 uint32_t kbps = bytes_per_sec / 1000U; /* approximate kilobytes/sec */
-
-//                 int framerate = LOG_INTERVAL_CNT * 1000U / total_elapsed_ms;
-
-//                 LOG_INF("send_random_data: %u ms elapsed; %u B/s (%u kB/s) - %u F/s",
-//                         (uint32_t)total_elapsed_ms, bytes_per_sec, kbps, framerate);
-//                 loop_start_ms = k_uptime_get();
-//             }
-
-//             int64_t delay_ms = (1000 / 50) - (k_uptime_get() - run_start_ms); /* 50 Hz minus time the loop took */
-//             if (delay_ms < 0)
-//             {
-//                 delay_ms = 0;
-//                 LOG_WRN("rand_sender_thread: loop took too long; skipping sleep");
-//             }
-//             else
-//             {
-//                 k_sleep(K_MSEC(delay_ms));
-//             }
-//         }
-//         else
-//         {
-//             /* No connection; wait a bit before retrying */
-//             k_sleep(K_MSEC(100));
-//         }
-//     }
-// }
-// K_THREAD_DEFINE(ble_random_send_thread, 1024, rand_sender_thread, NULL, NULL, NULL, 7, 0, 0);
-
 // --- MAIN -------------------------------------
-#define BLE_TASK_PRIO 1
-#define SPI_TASK_PRIO 2
 K_THREAD_DEFINE(ble_tx_thread_id, 2048, ble_tx_thread, NULL, NULL, NULL, BLE_TASK_PRIO, 0, 0);
 K_THREAD_DEFINE(spi_session_thread_id, 2048, spi_session_thread, NULL, NULL, NULL, SPI_TASK_PRIO, 0, 0);
+// K_THREAD_DEFINE(ble_random_send_thread, 1024, rand_sender_thread, NULL, NULL, NULL, 7, 0, 0);
 int main(void)
 {
     LOG_WRN("Start-delay 5s");
