@@ -197,8 +197,8 @@ static void spi_session_thread(void)
     while (1)
     {
         // Wait for GPIO interrupt to trigger a session
+        LOG_INF("Waiting for SPI trigger...");
         k_sem_take(&data_ready_trigger_sem, K_FOREVER);
-
         LOG_INF("SPI session thread activated");
 
         // Ensure only one read session runs at a time (serialize sessions)
@@ -273,7 +273,7 @@ static void spi_session_thread(void)
             uint32_t queue_used = 15 - k_msgq_num_free_get(&ble_tx_msgq);
             LOG_INF("BLE queue depth used: %d/15", queue_used);
 
-            int qerr = k_msgq_put(&ble_tx_msgq, &tx_item, K_FOREVER);
+            int qerr = k_msgq_put(&ble_tx_msgq, &tx_item, K_MSEC(10));
             if (qerr != 0)
             {
                 LOG_WRN("BLE TX queue full; dropping full frame (err %d)", qerr);
@@ -370,8 +370,17 @@ static void ble_tx_thread(void)
             if (slow_counter % 20 == 0)
             {
                 int64_t time_since_last_slow_ms = now_ms - slow_last_send_time_ms;
-                LOG_WRN("BLE: Sent 20 full frames. Average rate: %.2f fps",
-                        (double)(20.0 * 1000.0) / time_since_last_slow_ms);
+                if (time_since_last_slow_ms <= 0)
+                {
+                    LOG_WRN("BLE: Sent 20 full frames. Average rate unavailable (dt=%lld ms)",
+                            (long long)time_since_last_slow_ms);
+                }
+                else
+                {
+                    uint32_t fps = (uint32_t)(((uint64_t)20 * 1000U + time_since_last_slow_ms / 2) /
+                                              (uint64_t)time_since_last_slow_ms);
+                    LOG_WRN("BLE: Sent 20 full frames. Average rate: %u fps", fps);
+                }
                 slow_last_send_time_ms = now_ms;
             }
         }

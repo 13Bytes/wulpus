@@ -14,11 +14,11 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <msp430.h> 
+#include <msp430.h>
 #include "wulpus_sys.h"
 
 #include "uslib_timers_isrs.h"
@@ -53,7 +53,6 @@ static void saphSeqAcqDoneCallback(void);
 static void slowTimerCc2Callback(void);
 static void fastTimerCc0Callback(void);
 
-
 int main(void)
 {
 
@@ -65,7 +64,7 @@ int main(void)
     // Sets default parameters
     configAfterPowerUp();
 
-    while(1)
+    while (1)
     {
         // Set default parameters
         tx_rx_id = 0;
@@ -82,10 +81,10 @@ int main(void)
         prepareUSSAcquisition();
         // Do measurements
         usAcquisitionLoop();
-        }
-    
+    }
+
     // Not reachable
-	return 0;
+    return 0;
 }
 
 void configAfterPowerUp(void)
@@ -143,7 +142,7 @@ void configAfterPowerUp(void)
 
 static void receiveUssConfPackage(void)
 {
-    while(1)
+    while (1)
     {
         // Sleep for 10 ms
         timerSlowDelay(327, LPM3_bits);
@@ -165,7 +164,8 @@ static void receiveUssConfPackage(void)
     }
 }
 
-static void prepareUSSAcquisition(){
+static void prepareUSSAcquisition()
+{
     enableHvPcbDcDc();
     // Power up HV PCB
     enableHvPcbSupply();
@@ -188,18 +188,25 @@ static void usAcquisitionLoop(void)
 
     bool no_error = true;
 
-    while(1)
+    while (1)
     {
         // Check if nRF52 BLE connection is ready
-        if(isBleReady())
+        if (isBleReady())
         {
+
+            // Ensure tx_rx_id is within valid bounds
+            // If txRxConfLen is 0 or tx_rx_id is out of range, reset to 0
+            if (msp_config.txRxConfLen == 0 || tx_rx_id >= msp_config.txRxConfLen)
+            {
+                tx_rx_id = 0;
+            }
 
             // Update the measurement header
             meas_header[0] = MEAS_START_OF_FRAME_MASK;
             meas_header[1] = tx_rx_id;
-            meas_header[2] = (uint8_t) (meas_frame_nr & 0xFF);
-            meas_header[3] = (uint8_t) (meas_frame_nr >> 8);
-            memcpy((uint16_t *) 0x4000, &meas_header, 4);
+            meas_header[2] = (uint8_t)(meas_frame_nr & 0xFF);
+            meas_header[3] = (uint8_t)(meas_frame_nr >> 8);
+            memcpy((uint16_t *)0x4000, &meas_header, 4);
 
             // Configure TX config (applied immediately)
             hvMuxConfTx(msp_config.txConfigs[tx_rx_id]);
@@ -224,7 +231,6 @@ static void usAcquisitionLoop(void)
             // Wait for SPI DMA transmission to complete
             usWaitForSpiDmaRx();
 
-
             // Check the SPI RX buffer for restart command
             if (isRestartCondition(usSpiGetRxPtr()))
             {
@@ -238,9 +244,14 @@ static void usAcquisitionLoop(void)
             // Increment measurement frame number
             // And TX RX configuration ID
             meas_frame_nr++;
-            tx_rx_id++;
-            if(tx_rx_id == msp_config.txRxConfLen)
-                tx_rx_id = 0;
+
+            // Wrap tx_rx_id, ensuring it stays within bounds
+            if (msp_config.txRxConfLen > 0)
+            {
+                tx_rx_id++;
+                if (tx_rx_id >= msp_config.txRxConfLen)
+                    tx_rx_id = 0;
+            }
         }
     }
 }
@@ -252,7 +263,7 @@ static void getConfigPack(void)
 {
     // Initiate an SPI transaction to receive a config file
     // Clear TX buffer
-    memset((uint16_t *) 0x4000, 0, (uint32_t)BYTES_PR_XFER_TX);
+    memset((uint16_t *)0x4000, 0, (uint32_t)BYTES_PR_XFER_TX);
     // Start SPI transaction
     usStartSPI();
 
@@ -268,7 +279,6 @@ static void getConfigPack(void)
 static void hsPllUnlockCallback(void)
 {
     // TI recommends to turn off USS module and check USSXT oscillator
-
     pllUnlockCallback();
 }
 

@@ -598,14 +598,20 @@ void confTimerSlowSwEvents(void)
 void reloadTimerSlowSwEvents(void)
 {
     uint16_t counter;
+    uint32_t next_ccr0, next_ccr2;
 
     counter = HWREG16(TIMER_SLOW_BASE + OFS_TAxR);
 
+    // Calculate next compare values with overflow protection
+    // Timer runs in continuous mode (0-65535), so we need to handle wraparound
+    next_ccr0 = ((uint32_t)counter + config.measPeriod) & 0xFFFF;
+    next_ccr2 = ((uint32_t)counter + config.dcDcTurnOnTime) & 0xFFFF;
+
     // Reload measurement period
-    HWREG16(TIMER_SLOW_BASE + OFS_TAxCCR0) = counter + config.measPeriod;
+    HWREG16(TIMER_SLOW_BASE + OFS_TAxCCR0) = (uint16_t)next_ccr0;
 
     // Reload DC-DC turn on time
-    HWREG16(TIMER_SLOW_BASE + OFS_TAxCCR2) = counter + config.dcDcTurnOnTime;
+    HWREG16(TIMER_SLOW_BASE + OFS_TAxCCR2) = (uint16_t)next_ccr2;
 
     return;
 }
