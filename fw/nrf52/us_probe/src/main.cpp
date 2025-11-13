@@ -35,10 +35,6 @@ static const nrfx_timer_t timer_spi_trigger = NRFX_TIMER_INSTANCE(3);
 // Counter to track number of completed SPI transfers
 static const nrfx_timer_t timer_counter = NRFX_TIMER_INSTANCE(4);
 
-// PPI/DPPI channels
-static nrf_ppi_channel_t ppi_timer_to_spi;
-static nrf_ppi_channel_t ppi_spi_to_counter;
-
 // Semaphore to serialize sessions triggered by the data-ready IRQ
 static struct k_sem single_session;
 // Semaphore signaled on SPI transfer completion

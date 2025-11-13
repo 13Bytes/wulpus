@@ -9,5 +9,8 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(us_probe)
 
 # NORDIC SDK APP START
-target_sources(app PRIVATE src/main.cpp)
+target_sources(app PRIVATE
+    src/main.cpp
+)
+target_include_directories(app PRIVATE include)
 # NORDIC SDK APP END

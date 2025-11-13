@@ -6,3 +6,5 @@ __pycache__/
 *.clangd
 sw/.venv
 local-development/
+.claude
+workspace.theia-workspace
