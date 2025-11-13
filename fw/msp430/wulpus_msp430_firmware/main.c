@@ -167,18 +167,20 @@ static void receiveUssConfPackage(void)
 
 static void prepareUSSAcquisition(){
     enableHvPcbDcDc();
-
-    // Configure Uss according to the new package
-    confUsSubsystem();
-
-    // Configure the events of slow and fast timers
-    confTimerSlowSwEvents();
-    confTimerFastSwEvents();
-
     // Power up HV PCB
     enableHvPcbSupply();
     // Enable Power for OPA836
     enableOpAmpSupply();
+
+    // Configure Uss according to the new package
+    confUsSubsystem();
+
+    // Sleep for 1 ms to let power rail ramp up to expected voltage
+    timerSlowDelay(32, LPM3_bits);
+
+    // Configure the events of slow and fast timers
+    confTimerSlowSwEvents();
+    confTimerFastSwEvents();
 }
 
 static void usAcquisitionLoop(void)
