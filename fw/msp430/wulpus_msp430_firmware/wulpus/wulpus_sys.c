@@ -133,19 +133,16 @@ bool isNewConfigCondition(uint8_t * spi_rx){
 // Initiate MSP430-controlled power switches
 void initAllPowerSwitches(void)
 {
-    // Select Port 1
-    // Set Pin 6 to output "RxPwr" (powers up input amplifier OPA836 using the load switch U6)
+    // Set output "RxPwr" (powers up input amplifier OPA836 using the load switch U6)
     GPIO_setAsOutputPin(GPIO_PORT_RX_POWER, GPIO_PIN_RX_POWER);
 
-    // Select Port 2
-    // Set Pin 2 to output "EN HV" (power up HV PCB)
+    // Set output "EN HV" (power up HV PCB)
     // Power enable pin for DC-DC converters on HV PCB (powers TPS61222 and LT1945)
     GPIO_setAsOutputPin(GPIO_PORT_HV_SUPPLY, GPIO_PIN_HV_SUPPLY);
 
-    // Select Port 6
-    // Set Pin 0 to output "RxEn" (powers up input amplifier OPA836)
-    // Set Pin 4 to output "SW_EN" (Switch DC/DC: TPS61222)
-    // Set Pin 5 to output "HV_EN" (HV DC/DC: LT1945)
+    // Set output "RxEn" (powers up input amplifier OPA836)
+    // Set output "SW_EN" (Switch DC/DC: TPS61222)
+    // Set output "HV_EN" (HV DC/DC: LT1945)
     GPIO_setAsOutputPin(GPIO_PORT_RX_ENABLE, GPIO_PIN_RX_ENABLE);
     GPIO_setAsOutputPin(GPIO_PORT_SWITCH_ENABLE, GPIO_PIN_SWITCH_ENABLE);
     GPIO_setAsOutputPin(GPIO_PORT_HV_DC_ENABLE, GPIO_PIN_HV_DC_ENABLE);
@@ -158,8 +155,8 @@ void initOtherGpios(void)
     GPIO_setAsInputPin(GPIO_PORT_BLE_READY, GPIO_PIN_BLE_READY);
 
     // Configure LED
-    P1DIR |= GPIO_PIN_LED_MSP430;
-    P1OUT &= ~GPIO_PIN_LED_MSP430;
+    GPIO_setAsOutputPin(GPIO_PORT_LED_MSP430, GPIO_PIN_LED_MSP430);
+    GPIO_setOutputLowOnPin(GPIO_PORT_LED_MSP430, GPIO_PIN_LED_MSP430);
 }
 
 bool isBleReady(void)
@@ -171,7 +168,7 @@ bool isBleReady(void)
 void enableOpAmpSupply(void)
 {
     // Enable Power for OPA836
-    // Set Pin 6 "RxPwr" to high
+    // Set "RxPwr" to high
     GPIO_setOutputHighOnPin(GPIO_PORT_RX_POWER, GPIO_PIN_RX_POWER);
 }
 
@@ -179,7 +176,7 @@ void enableOpAmpSupply(void)
 void disableOpAmpSupply(void)
 {
     // Disable Power for OPA836
-    // Set Pin 6 "RxPwr" to low
+    // Set "RxPwr" to low
     GPIO_setOutputLowOnPin(GPIO_PORT_RX_POWER, GPIO_PIN_RX_POWER);
 }
 
@@ -187,7 +184,7 @@ void disableOpAmpSupply(void)
 void enableOpAmp(void)
 {
     // Enable RX OPA836
-    // Set Pin 0 "RxEn" to high
+    // Set "RxEn" to high
     GPIO_setOutputHighOnPin(GPIO_PORT_RX_ENABLE, GPIO_PIN_RX_ENABLE);
 }
 
@@ -195,7 +192,7 @@ void enableOpAmp(void)
 void disableOpAmp(void)
 {
     // Disable RX OPA836
-    // Set Pin 0 "RxEn" to low
+    // Set "RxEn" to low
     GPIO_setOutputLowOnPin(GPIO_PORT_RX_ENABLE, GPIO_PIN_RX_ENABLE);
 }
 
@@ -205,7 +202,7 @@ void enableHvPcbSupply(void)
     // Power up HV PCB
     // Powering up this domain takes quite long, therefore it's powered on always and not
     // just for the US measurements
-    // Set Pin 2 "EN HV" to high (power up HV PCB)
+    // Set "EN HV" to high (power up HV PCB)
     GPIO_setOutputHighOnPin(GPIO_PORT_HV_SUPPLY, GPIO_PIN_HV_SUPPLY);
 }
 
@@ -213,7 +210,7 @@ void enableHvPcbSupply(void)
 void disableHvPcbSupply(void)
 {
     // Power down HV PCB
-    // Set Pin 2 "EN HV" to low (power down HV PCB)
+    // Set "EN HV" to low (power down HV PCB)
     GPIO_setOutputLowOnPin(GPIO_PORT_HV_SUPPLY, GPIO_PIN_HV_SUPPLY);
 }
 
@@ -221,8 +218,8 @@ void disableHvPcbSupply(void)
 void enableHvPcbDcDc(void)
 {
     // Enable HV and +5 V
-    // Set Pin 4 "SW_EN" to high (enables the DC/DC TPS61222)
-    // Set Pin 5 "HV1_EN" to high (enables the HV DC/DC LT1945)
+    // Set "SW_EN" to high (enables the DC/DC TPS61222)
+    // Set "HV1_EN" to high (enables the HV DC/DC LT1945)
     GPIO_setOutputHighOnPin(GPIO_PORT_SWITCH_ENABLE,
                             GPIO_PIN_SWITCH_ENABLE | GPIO_PIN_HV_DC_ENABLE);
 }
@@ -231,8 +228,8 @@ void enableHvPcbDcDc(void)
 void disableHvPcbDcDc(void)
 {
     // Disable HV and +5 V
-    // Set Pin 4 "SW_EN" to low (disables the DC/DC TPS61222)
-    // Set Pin 5 "HV1_EN" to low (disables the HV DC/DC LT1945)
+    // Set "SW_EN" to low (disables the DC/DC TPS61222)
+    // Set "HV1_EN" to low (disables the HV DC/DC LT1945)
     GPIO_setOutputLowOnPin(GPIO_PORT_SWITCH_ENABLE,
                            GPIO_PIN_SWITCH_ENABLE | GPIO_PIN_HV_DC_ENABLE);
 }
@@ -240,7 +237,7 @@ void disableHvPcbDcDc(void)
 // Disable only HV DC-DC converter on HV PCB
 void disableHvDcDc(void)
 {
-    // Set Pin 5 "HV1_EN" to low (disables the HV DC/DC LT1945)
+    // Set "HV1_EN" to low (disables the HV DC/DC LT1945)
     GPIO_setOutputLowOnPin(GPIO_PORT_HV_DC_ENABLE, GPIO_PIN_HV_DC_ENABLE);
 }
 

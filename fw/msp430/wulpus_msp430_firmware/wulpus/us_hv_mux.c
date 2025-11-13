@@ -24,9 +24,6 @@
 void hvMuxInit(void)
 {
     // Configure SPI pins
-    // Select Port 5
-    // Set Pin 4 to output peripheral function, SPI CLK: SW_CLK
-    // Set Pin 5 to output peripheral function, SPI MOSI (SIMO): SW_D_IN
     GPIO_setAsPeripheralModuleFunctionOutputPin(
         GPIO_PORT_HV_MUX_SPI,
         GPIO_PIN_HV_MUX_CLK | GPIO_PIN_HV_MUX_MOSI,

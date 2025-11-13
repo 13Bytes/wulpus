@@ -50,7 +50,7 @@ void usStartSPI(void)
     // Fill in first byte to SPI TX buffer to be ready when the transaction starts
     uint8_t first_byte;
     memcpy(&first_byte, (uint16_t *) 0x4000, 1);
-    UCA1TXBUF = first_byte;
+    NRF_SPI_TXBUF = first_byte;
 
     // Set Source address of DMA channel 0 to US data, start at second byte
     DMA_disableTransfers(DMA_CHANNEL_0);
@@ -135,7 +135,7 @@ void usDmaInit(void)
     param_ch_0.channelSelect = DMA_CHANNEL_0;
     param_ch_0.transferModeSelect = DMA_TRANSFER_REPEATED_SINGLE;
     param_ch_0.transferSize = sizeof(s_rx_buf_1)-1; // Minus 1 because the first byte is transfered manually
-    param_ch_0.triggerSourceSelect = DMA_TRIGGERSOURCE_17; //UCA1TXIFG
+    param_ch_0.triggerSourceSelect = NRF_SPI_DMA_TX_TRIGGER;
     param_ch_0.transferUnitSelect = DMA_SIZE_SRCBYTE_DSTBYTE;
     param_ch_0.triggerTypeSelect = DMA_TRIGGER_RISINGEDGE;
     DMA_init(&param_ch_0);
@@ -144,7 +144,7 @@ void usDmaInit(void)
     // Use SPI TX register as destination
     // Don't increment address after transfer
     DMA_setDstAddress(DMA_CHANNEL_0,
-                      (uint32_t) &UCA1TXBUF,
+                      (uint32_t)&NRF_SPI_TXBUF,
                       DMA_DIRECTION_UNCHANGED);
 
     // Initialize and Setup DMA Channel 1 for RX buffers
@@ -157,7 +157,7 @@ void usDmaInit(void)
     param_ch_1.channelSelect = DMA_CHANNEL_1;
     param_ch_1.transferModeSelect = DMA_TRANSFER_REPEATED_SINGLE;
     param_ch_1.transferSize = sizeof(s_rx_buf_1);
-    param_ch_1.triggerSourceSelect = DMA_TRIGGERSOURCE_16; //UCA1RXIFG
+    param_ch_1.triggerSourceSelect = NRF_SPI_DMA_RX_TRIGGER;
     param_ch_1.transferUnitSelect = DMA_SIZE_SRCBYTE_DSTBYTE;
     param_ch_1.triggerTypeSelect = DMA_TRIGGER_RISINGEDGE;
     DMA_init(&param_ch_1);
@@ -166,7 +166,7 @@ void usDmaInit(void)
     // Use SPI RX register as source
     // Don't increment address after transfer
     DMA_setSrcAddress(DMA_CHANNEL_1,
-                      (uint32_t) &UCA1RXBUF,
+                      (uint32_t)&NRF_SPI_RXBUF,
                       DMA_DIRECTION_UNCHANGED);
 }
 
@@ -178,44 +178,36 @@ void usDmaInit(void)
 void usSpiInit(void)
 {
     // Configure SPI pins
-    // Select Port 1
-    // Set Pin 2 to input peripheral function, SPI MOSI (SIMO)
     GPIO_setAsPeripheralModuleFunctionInputPin(
         GPIO_PORT_NRF_SPI_MOSI,
         GPIO_PIN_NRF_SPI_MOSI,
         GPIO_PRIMARY_MODULE_FUNCTION);
 
-    // Select Port 1
-    // Set Pin 3 to output peripheral function, SPI MISO (SOMI)
     GPIO_setAsPeripheralModuleFunctionOutputPin(
         GPIO_PORT_NRF_SPI_MISO,
         GPIO_PIN_NRF_SPI_MISO,
         GPIO_PRIMARY_MODULE_FUNCTION);
 
-    // Select Port 2
-    // Set Pin 0 to input peripheral function, SPI CLK
-    // Set Pin 1 to input peripheral module Function, SPI CS
     GPIO_setAsPeripheralModuleFunctionInputPin(
         GPIO_PORT_NRF_SPI_CLK,
         GPIO_PIN_NRF_SPI_CLK | GPIO_PIN_NRF_SPI_CS,
         GPIO_PRIMARY_MODULE_FUNCTION);
 
-    // Select Port 4
-    // Set Pin 0 to output SPI "Data ready signal"
+    // Set output SPI "Data ready signal"
     GPIO_setAsOutputPin(GPIO_PORT_DATA_READY, GPIO_PIN_DATA_READY);
 
-    // Initialize SPI slave: MSB first, inactive high clock polarity and 4 wire SPI
+    // Initialize SPI slave: MSB first, 4 wire SPI
     EUSCI_A_SPI_initSlaveParam param = {0};
     param.msbFirst = EUSCI_A_SPI_MSB_FIRST;
     param.clockPhase = EUSCI_A_SPI_PHASE_DATA_CHANGED_ONFIRST_CAPTURED_ON_NEXT;
     param.clockPolarity = EUSCI_A_SPI_CLOCKPOLARITY_INACTIVITY_LOW;
     param.spiMode = EUSCI_A_SPI_4PIN_UCxSTE_ACTIVE_LOW;
-    EUSCI_A_SPI_initSlave(EUSCI_A1_BASE, &param);
+    EUSCI_A_SPI_initSlave(NRF_SPI_EUSCI_BASE, &param);
 
     // Use Slave Select
-    EUSCI_A_SPI_select4PinFunctionality(EUSCI_A1_BASE, EUSCI_A_SPI_ENABLE_SIGNAL_FOR_4WIRE_SLAVE);
+    EUSCI_A_SPI_select4PinFunctionality(NRF_SPI_EUSCI_BASE, EUSCI_A_SPI_ENABLE_SIGNAL_FOR_4WIRE_SLAVE);
 
     //Enable SPI Module
-    EUSCI_A_SPI_enable(EUSCI_A1_BASE);
+    EUSCI_A_SPI_enable(NRF_SPI_EUSCI_BASE);
 }
 
