@@ -47,6 +47,8 @@ struct ble_data_t
     uint8_t data[BLE_PCKT_SEND_SIZE];
     uint16_t len;
 };
+#define BLE_TX_QUEUE_SIZE 1
+extern struct bt_conn *current_conn;
 
 // --- Function Declarations --------------------
 int start_advertise(void);

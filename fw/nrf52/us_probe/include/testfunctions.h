@@ -1,2 +1,5 @@
+#include <zephyr/sys/atomic.h>
+#include <zephyr/kernel.h>
 
-int send_random_data(const uint8_t tx_rx_id, const uint16_t meas_frame_nr);
+void rand_sender_thread(void *msgq_ptr, void *unused1, void *unused2);
+void send_random_data(const uint8_t tx_rx_id, const uint16_t meas_frame_nr, k_msgq &ble_tx_msgq);

@@ -116,7 +116,7 @@ Use JLinkRTTViewer or JLinkRTTClient to view logs
 
 **Message Queue:**
 
-- `ble_tx_msgq`: 15 slots of 804-byte frames for BLE transmission (defined globally)
+- `ble_tx_msgq`: BLE_TX_QUEUE_SIZE slots of 804-byte frames for BLE transmission (defined globally)
 
 **Mutex:**
 

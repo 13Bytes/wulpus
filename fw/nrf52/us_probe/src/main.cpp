@@ -4,7 +4,9 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/irq.h>
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/mesh.h>
 #include <bluetooth/services/nus.h>
+#include <zephyr/drivers/hwinfo.h>
 #include <nrfx_spim.h>
 #include <nrfx_timer.h>
 #include <nrfx_ppi.h>
@@ -29,11 +31,6 @@ static uint8_t m_tx_buffer[BYTES_PR_XFER_TX * CHUNKS_PER_FRAME] = {0};
 static uint8_t m_rx_buffer[BYTES_PR_XFER_RX * CHUNKS_PER_FRAME] = {0};
 
 static const nrfx_spim_t spim_inst = NRFX_SPIM_INSTANCE(SPIM_INST_IDX);
-
-// Timer to trigger SPI transfers at regular intervals (300µs)
-static const nrfx_timer_t timer_spi_trigger = NRFX_TIMER_INSTANCE(3);
-// Counter to track number of completed SPI transfers
-static const nrfx_timer_t timer_counter = NRFX_TIMER_INSTANCE(4);
 
 // Semaphore to serialize sessions triggered by the data-ready IRQ
 static struct k_sem single_session;
@@ -83,9 +80,13 @@ static void us_spi_init(void)
     LOG_INF("SPI init complete");
 }
 
+// callback for data-ready GPIO interrupt, triggering SPIM transfer
+static struct gpio_callback data_ready_cb;
+
 // --- Bluetooth LE -----------------------------
 static K_SEM_DEFINE(ble_tx_ready_sem, 1, 1);
-static struct bt_conn *current_conn;
+struct bt_conn *current_conn;
+static uint8_t ble_conn_id;
 
 static const struct bt_data ad[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -94,15 +95,47 @@ static const struct bt_data ad[] = {
 static const struct bt_data sd[] = {
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_VAL),
 };
-K_MSGQ_DEFINE(ble_tx_msgq, sizeof(struct ble_data_t), 15, 4);
+
+K_MSGQ_DEFINE(ble_tx_msgq, sizeof(struct ble_data_t), BLE_TX_QUEUE_SIZE, 4);
 
 int start_advertise(void)
 {
     LOG_INF("starting advertising...");
-    int err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
+    size_t id_count = 0xFF;
+    struct bt_le_adv_param adv_params = *BT_LE_EXT_ADV_START_DEFAULT;
+    (void)bt_id_get(NULL, &id_count);
+    if (id_count < CONFIG_BT_ID_MAX)
+    {
+        int id = bt_id_create(NULL, NULL);
+        if (id < 0)
+        {
+            LOG_WRN("Unable to create a new identity for LBS (err %d) -> Using default one", id);
+            ble_conn_id = BT_ID_DEFAULT;
+        }
+        else
+        {
+            ble_conn_id = id;
+        }
+    }
+    else
+    {
+        ble_conn_id = BT_ID_DEFAULT + 1;
+    }
+    adv_params.id = ble_conn_id;
+    LOG_INF("Using BLE identity ID: %d", ble_conn_id);
+
+    int err = bt_le_adv_start(&adv_params, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
     if (err)
     {
         LOG_ERR("Advertising failed to start (err %d)", err);
+        if (err == -ENOMEM)
+        {
+            LOG_ERR(" - No free connection objects available for connectable advertiser");
+        }
+        else if (err == -ECONNREFUSED)
+        {
+            LOG_ERR(" - Connection refused - too many connections?");
+        }
     }
     return err;
 }
@@ -183,7 +216,56 @@ struct bt_nus_cb nus_callbacks = {
     .sent = bt_sent,
 };
 
-static struct gpio_callback data_ready_cb;
+// --- BLE Mesh -------------------------------------
+
+/* Provisioning */
+
+static uint8_t dev_uuid[16] = {0};
+
+static int output_number(bt_mesh_output_action_t action, uint32_t number)
+{
+    LOG_INF("OOB Number: %u\n", number);
+    return 0;
+}
+
+static void prov_complete(uint16_t net_idx, uint16_t addr)
+{
+    LOG_INF("Provisioning completed with net_idx: 0x%04x, addr: 0x%04x", net_idx, addr);
+}
+
+static void prov_reset(void)
+{
+    bt_mesh_prov_enable(static_cast<bt_mesh_prov_bearer_t>(BT_MESH_PROV_GATT | BT_MESH_PROV_ADV));
+    LOG_WRN("The local node has been reset and needs reprovisioning");
+}
+
+static const struct bt_mesh_prov prov = {
+    .uuid = dev_uuid,
+    .output_size = 4,
+    .output_actions = BT_MESH_DISPLAY_NUMBER,
+    .output_number = output_number,
+    .complete = prov_complete,
+    .reset = prov_reset,
+};
+
+/* Composition */
+static const struct bt_mesh_elem elements[] = {
+    {
+        .loc = BT_MESH_MODEL_ID_GEN_LOCATION_SRV,
+        .model_count = 0,
+        .vnd_model_count = 0,
+        .models = nullptr,
+        .vnd_models = nullptr,
+    },
+};
+
+static const struct bt_mesh_comp comp = {
+    .cid = BT_COMP_ID_LF,
+    .elem_count = ARRAY_SIZE(elements),
+    .elem = elements,
+};
+
+// --- Threads -------------------------------
 
 // SPI session thread - dedicated high-priority thread for SPI transfers
 static void spi_session_thread(void)
@@ -266,8 +348,8 @@ static void spi_session_thread(void)
             tx_item.len = BLE_PCKT_SEND_SIZE;
             memcpy(&tx_item.data, m_rx_buffer, BLE_PCKT_SEND_SIZE);
 
-            uint32_t queue_used = 15 - k_msgq_num_free_get(&ble_tx_msgq);
-            LOG_INF("BLE queue depth used: %d/15", queue_used);
+            uint8_t queue_used = BLE_TX_QUEUE_SIZE - k_msgq_num_free_get(&ble_tx_msgq);
+            LOG_INF("BLE queue depth used: %d/%d", queue_used, BLE_TX_QUEUE_SIZE);
 
             int qerr = k_msgq_put(&ble_tx_msgq, &tx_item, K_MSEC(10));
             if (qerr != 0)
@@ -384,9 +466,9 @@ static void ble_tx_thread(void)
 }
 
 // --- MAIN -------------------------------------
-K_THREAD_DEFINE(ble_tx_thread_id, 2048, ble_tx_thread, NULL, NULL, NULL, BLE_TASK_PRIO, 0, 0);
-K_THREAD_DEFINE(spi_session_thread_id, 2048, spi_session_thread, NULL, NULL, NULL, SPI_TASK_PRIO, 0, 0);
-// K_THREAD_DEFINE(ble_random_send_thread, 1024, rand_sender_thread, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(ble_tx_thread_id, 1024, ble_tx_thread, NULL, NULL, NULL, BLE_TASK_PRIO, 0, 0);
+// K_THREAD_DEFINE(spi_session_thread_id, 1024, spi_session_thread, NULL, NULL, NULL, SPI_TASK_PRIO, 0, 0);
+K_THREAD_DEFINE(ble_random_send_thread, 1024, rand_sender_thread, &ble_tx_msgq, NULL, NULL, 7, 0, 0);
 int main(void)
 {
     LOG_WRN("Start-delay 5s");
@@ -434,6 +516,52 @@ int main(void)
         LOG_ERR("Failed to enable Bluetooth: %d\n", err);
         return err;
     }
+
+    LOG_INF("Reading config to prepare for Bluetooth LE Mesh");
+    if (IS_ENABLED(CONFIG_HWINFO))
+    {
+        size_t id_len = hwinfo_get_device_id(dev_uuid, sizeof(dev_uuid));
+        if (!IS_ENABLED(CONFIG_BT_MESH_DK_LEGACY_UUID_GEN))
+        {
+            /* If device ID is shorter than UUID size, fill rest of buffer with
+             * inverted device ID.
+             */
+            for (size_t i = id_len; i < sizeof(dev_uuid); i++)
+            {
+                dev_uuid[i] = dev_uuid[i % id_len] ^ 0xff;
+            }
+        }
+        dev_uuid[6] = (dev_uuid[6] & BIT_MASK(4)) | BIT(6);
+        dev_uuid[8] = (dev_uuid[8] & BIT_MASK(6)) | BIT(7);
+    }
+    else
+    {
+        LOG_ERR("HWINFO not enable - using default UUIDd");
+        dev_uuid[0] = 0xdd;
+        dev_uuid[1] = 0xdd;
+    }
+
+    LOG_INF("Setting up Bluetooth LE Mesh");
+    err = bt_mesh_init(&prov, &comp);
+    if (err)
+    {
+        LOG_ERR("Initializing mesh failed (err %d)\n", err);
+        return err;
+    }
+    if (IS_ENABLED(CONFIG_SETTINGS))
+    {
+        LOG_INF("restoring the Bluetooth state (e.g. pairing keys)");
+        settings_load();
+    }
+    else
+    {
+        LOG_WRN("CONFIG_BT_SETTINGS not enabled - won't restore Bluetooth state");
+    }
+
+    /* This will be a no-op if settings_load() loaded provisioning info */
+    bt_mesh_prov_enable(static_cast<bt_mesh_prov_bearer_t>(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT));
+    printk("Mesh initialized\n");
+
     LOG_INF("Starting BLE advertisement");
     err = start_advertise();
     if (err)
