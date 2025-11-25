@@ -5,9 +5,9 @@
 
 LOG_MODULE_DECLARE(main, CONFIG_LOG_DEFAULT_LEVEL);
 
-void send_random_data(const uint8_t tx_rx_id, const uint16_t meas_frame_nr, k_msgq &ble_tx_msgq)
+void send_random_data(uint8_t tx_rx_id, uint16_t meas_frame_nr, struct k_msgq *ble_tx_msgq)
 {
-    ble_data_t tx_item = {};
+    ble_data_t tx_item = {0};
     tx_item.len = BLE_PCKT_SEND_SIZE;
 
     /* first chunk [0xFF, tx_rx_id, acq_nr_L, acq_nr_H, data...] */
@@ -16,10 +16,10 @@ void send_random_data(const uint8_t tx_rx_id, const uint16_t meas_frame_nr, k_ms
     tx_item.data[2] = (uint8_t)(meas_frame_nr & 0xFF);
     tx_item.data[3] = (uint8_t)(meas_frame_nr >> 8);
 
-    uint8_t queue_used = 15 - k_msgq_num_free_get(&ble_tx_msgq);
+    uint8_t queue_used = BLE_TX_QUEUE_SIZE - k_msgq_num_free_get(ble_tx_msgq);
     LOG_INF("BLE queue depth used: %d/%d", queue_used, BLE_TX_QUEUE_SIZE);
 
-    int qerr = k_msgq_put(&ble_tx_msgq, &tx_item, K_MSEC(10));
+    int qerr = k_msgq_put(ble_tx_msgq, &tx_item, K_MSEC(10));
     if (qerr != 0)
     {
         LOG_WRN("BLE TX queue full; dropping full frame (err %d)", qerr);
@@ -29,7 +29,7 @@ void send_random_data(const uint8_t tx_rx_id, const uint16_t meas_frame_nr, k_ms
 void rand_sender_thread(void *msgq_ptr, void *unused1, void *unused2)
 {
     // Cast the void pointer back to k_msgq pointer
-    struct k_msgq *ble_tx_msgq = static_cast<struct k_msgq *>(msgq_ptr);
+    struct k_msgq *ble_tx_msgq = (struct k_msgq *)msgq_ptr;
 
     uint16_t meas_frame_nr = 0;
 
@@ -47,7 +47,7 @@ void rand_sender_thread(void *msgq_ptr, void *unused1, void *unused2)
         {
             int64_t run_start_ms = k_uptime_get();
 
-            send_random_data(0x00, meas_frame_nr++, *ble_tx_msgq);
+            send_random_data(0x00, meas_frame_nr++, ble_tx_msgq);
             send_count++;
 
             if ((send_count % LOG_INTERVAL_CNT) == 0)

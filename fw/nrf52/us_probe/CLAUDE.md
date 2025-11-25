@@ -8,7 +8,7 @@ This is an nRF52832 Zephyr RTOS firmware that acts as a BLE gateway for an ultra
 
 **Code Structure:**
 
-- `src/main.cpp`: Main firmware implementation
+- `src/main.c`: Main firmware implementation
 - `src/main.h`: Shared definitions, constants, and thread priorities
 - `src/testfunctions.cpp/h`: Test utilities for BLE throughput testing
 

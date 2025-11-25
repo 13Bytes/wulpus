@@ -10,8 +10,8 @@ project(us_probe)
 
 # NORDIC SDK APP START
 target_sources(app PRIVATE
-    src/main.cpp
-    src/testfuctions.cpp
+    src/main.c
+    src/testfunctions.c
 )
 target_include_directories(app PRIVATE include)
 # NORDIC SDK APP END

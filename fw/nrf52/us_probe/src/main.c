@@ -9,8 +9,9 @@
 #include <zephyr/drivers/hwinfo.h>
 #include <nrfx_spim.h>
 #include <nrfx_timer.h>
-#include <nrfx_ppi.h>
 #include <string.h>
+#include <stdbool.h>
+#include <zephyr/sys/util.h>
 #include <zephyr/drivers/gpio.h>
 #include <hal/nrf_timer.h>
 #include <hal/nrf_spim.h>
@@ -62,7 +63,7 @@ static void us_spi_init(void)
     spim_config.mode = NRF_SPIM_MODE_1;
     spim_config.bit_order = NRF_SPIM_BIT_ORDER_MSB_FIRST;
     spim_config.irq_priority = SPI_1_PRIO;
-    err = nrfx_spim_init(&spim_inst, &spim_config, spim_handler, nullptr);
+    err = nrfx_spim_init(&spim_inst, &spim_config, spim_handler, NULL);
     if (err != NRFX_SUCCESS)
     {
         LOG_ERR("Failed to initialize SPIM instance %d with err: %d", SPIM_INST_IDX, err);
@@ -102,7 +103,7 @@ int start_advertise(void)
 {
     LOG_INF("starting advertising...");
     size_t id_count = 0xFF;
-    struct bt_le_adv_param adv_params = *BT_LE_EXT_ADV_START_DEFAULT;
+    struct bt_le_adv_param adv_params = *BT_LE_ADV_CONN_FAST_1;
     (void)bt_id_get(NULL, &id_count);
     if (id_count < CONFIG_BT_ID_MAX)
     {
@@ -235,7 +236,7 @@ static void prov_complete(uint16_t net_idx, uint16_t addr)
 
 static void prov_reset(void)
 {
-    bt_mesh_prov_enable(static_cast<bt_mesh_prov_bearer_t>(BT_MESH_PROV_GATT | BT_MESH_PROV_ADV));
+    bt_mesh_prov_enable((bt_mesh_prov_bearer_t)(BT_MESH_PROV_GATT | BT_MESH_PROV_ADV));
     LOG_WRN("The local node has been reset and needs reprovisioning");
 }
 
@@ -254,8 +255,8 @@ static const struct bt_mesh_elem elements[] = {
         .loc = BT_MESH_MODEL_ID_GEN_LOCATION_SRV,
         .model_count = 0,
         .vnd_model_count = 0,
-        .models = nullptr,
-        .vnd_models = nullptr,
+        .models = NULL,
+        .vnd_models = NULL,
     },
 };
 
@@ -344,7 +345,7 @@ static void spi_session_thread(void)
             }
 
             // Build one full frame and enqueue as a single item
-            ble_data_t tx_item = {};
+            ble_data_t tx_item = {0};
             tx_item.len = BLE_PCKT_SEND_SIZE;
             memcpy(&tx_item.data, m_rx_buffer, BLE_PCKT_SEND_SIZE);
 
@@ -362,7 +363,7 @@ static void spi_session_thread(void)
     }
 }
 
-int64_t last_gpio_interrupt_time{0};
+int64_t last_gpio_interrupt_time = 0;
 static void gpio_interrupt_handler(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
 {
     int64_t const dt_now = k_uptime_get();
@@ -398,7 +399,7 @@ static void ble_tx_thread(void)
         }
         // Send the frame in 201 byte chunks (202 bytes for the first to signalize start, the last byte is irrelevant)
         bool full_frame_sent = true;
-        for (unsigned i{0}; i < CHUNKS_PER_FRAME; i++)
+        for (unsigned i = 0; i < CHUNKS_PER_FRAME; i++)
         {
             uint16_t message_len = (i > 0) ? BYTES_PR_XFER_RX : BYTES_PR_XFER_RX + 1;
             int err;
@@ -559,7 +560,7 @@ int main(void)
     }
 
     /* This will be a no-op if settings_load() loaded provisioning info */
-    bt_mesh_prov_enable(static_cast<bt_mesh_prov_bearer_t>(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT));
+    bt_mesh_prov_enable((bt_mesh_prov_bearer_t)(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT));
     printk("Mesh initialized\n");
 
     LOG_INF("Starting BLE advertisement");

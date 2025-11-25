@@ -3,6 +3,7 @@
         led0 = &led_nrf52;
         data-ready = &data_ready_pin;
         ble-cnfg-ready = &ble_cnfg_ready_pin;
+        spi-conn = &spi1;
     };
 
     chosen {
