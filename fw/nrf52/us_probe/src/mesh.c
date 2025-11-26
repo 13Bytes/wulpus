@@ -97,9 +97,49 @@ static int mesh_receiving_start_config(const struct bt_mesh_model *model,
   return 0;
 }
 
-void mesh_publish_config()
+int mesh_publish_config(const uint8_t *config_data, size_t len)
 {
-  // TODO: Implement
+  if (!config_data || len == 0 || len > BLE_SINGLE_PCKT_SIZE)
+  {
+    LOG_ERR("Invalid config data: len=%u", (unsigned)len);
+    return -EINVAL;
+  }
+
+  if (!bt_mesh_is_provisioned())
+  {
+    LOG_WRN("Cannot publish config: not provisioned");
+    return -EAGAIN;
+  }
+
+  struct bt_mesh_model *mod = bt_mesh_model_find_vnd(comp.elem, BT_COMP_ID_LF,
+                                                     BT_MESH_VND_MODEL_ID_WULPUS);
+  if (!mod || !mod->pub || !mod->pub->msg)
+  {
+    LOG_ERR("Vendor model or publication not configured");
+    return -ENODEV;
+  }
+
+  if (mod->pub->addr == BT_MESH_ADDR_UNASSIGNED)
+  {
+    LOG_WRN("Model publication not configured. Using broadcast all (0xffff)");
+    mod->pub->addr = BT_MESH_ADDR_ALL_NODES;
+  }
+
+  k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
+
+  bt_mesh_model_msg_init(mod->pub->msg, BT_MESH_VND_OP_WULPUS_START_CONFIG);
+  net_buf_simple_add_mem(mod->pub->msg, config_data, len);
+  int err = bt_mesh_model_publish(mod);
+  if (err)
+  {
+    LOG_ERR("Failed to publish config: %d", err);
+  }
+  else
+  {
+    LOG_INF("--> TX Start Config (len=%u)", (unsigned)len);
+  }
+  k_mutex_unlock(&mesh_pub_mutex);
+  return err;
 }
 
 // Handle received data in Mesh
@@ -108,13 +148,6 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
                                      struct bt_mesh_msg_ctx *ctx,
                                      struct net_buf_simple *buf)
 {
-
-  if (address_is_local(bt_mesh_model_elem(model), ctx->addr))
-  {
-    // skip if message is from local node
-    return 0;
-  }
-
   LOG_INF("<-- RX message <0x%04x>", ctx->addr);
 
   if (buf->len < sizeof(frame_chunk_header))

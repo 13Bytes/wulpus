@@ -8,8 +8,7 @@
 // --- Definitions ---
 #define BT_MESH_VND_MODEL_ID_WULPUS 0x0001
 #define BT_MESH_VND_OP_WULPUS_FRAMECHUNK BT_MESH_MODEL_OP_3(0x52, BT_COMP_ID_LF)
-#define BT_MESH_VND_OP_WULPUS_START_CONFIG \
-  BT_MESH_MODEL_OP_3(0x53, BT_COMP_ID_LF)
+#define BT_MESH_VND_OP_WULPUS_START_CONFIG BT_MESH_MODEL_OP_3(0x53, BT_COMP_ID_LF)
 
 #define MESH_TX_QUEUE_SIZE 5
 
@@ -43,6 +42,7 @@ extern struct k_mutex mesh_pub_mutex;
 // --- Functions ---
 extern const struct bt_mesh_prov prov;
 void mesh_tx_thread(void);
+int mesh_publish_config(const uint8_t *config_data, size_t len);
 extern const struct bt_mesh_comp comp;
 extern uint8_t dev_uuid[16];
 

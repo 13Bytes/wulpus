@@ -68,9 +68,7 @@ static void bt_received(struct bt_conn *conn, const uint8_t *const data,
                         uint16_t len) {
   LOG_INF("Received data over BLE (NUS). Len: %d", len);
   apply_config(data, len);
-
-  // TODO: Publish Start Config to Mesh
-  // call mesh_publish_config
+  mesh_publish_config(data, len);
 }
 
 static void update_phy(struct bt_conn *conn) {
