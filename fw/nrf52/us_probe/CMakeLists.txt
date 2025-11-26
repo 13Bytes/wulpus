@@ -11,6 +11,7 @@ project(us_probe)
 # NORDIC SDK APP START
 target_sources(app PRIVATE
     src/main.c
+    src/helper.c
     src/testfunctions.c
 )
 target_include_directories(app PRIVATE include)

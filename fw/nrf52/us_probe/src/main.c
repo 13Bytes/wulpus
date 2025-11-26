@@ -1,25 +1,28 @@
-#include <zephyr/device.h>
-#include <zephyr/devicetree.h>
-#include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-#include <zephyr/irq.h>
-#include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/mesh.h>
+#include <bluetooth/mesh/models.h>
 #include <bluetooth/services/nus.h>
-#include <zephyr/drivers/hwinfo.h>
+#include <hal/nrf_spim.h>
+#include <hal/nrf_timer.h>
 #include <nrfx_spim.h>
 #include <nrfx_timer.h>
-#include <string.h>
 #include <stdbool.h>
-#include <zephyr/sys/util.h>
+#include <string.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/mesh.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
-#include <hal/nrf_timer.h>
-#include <hal/nrf_spim.h>
+#include <zephyr/drivers/hwinfo.h>
+#include <zephyr/irq.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
 
+#include "helper.h"
 #include "main.h"
 #include "testfunctions.h"
 
-const struct gpio_dt_spec ble_cnfg_ready = GPIO_DT_SPEC_GET(BLE_CNFG_READY_NODE, gpios);
+const struct gpio_dt_spec ble_cnfg_ready =
+    GPIO_DT_SPEC_GET(BLE_CNFG_READY_NODE, gpios);
 const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
 const struct gpio_dt_spec data_ready = GPIO_DT_SPEC_GET(DATA_READY_NODE, gpios);
 
@@ -55,10 +58,8 @@ static void us_spi_init(void)
     nrfx_err_t err;
 
     // Initialize SPIM
-    nrfx_spim_config_t spim_config = NRFX_SPIM_DEFAULT_CONFIG(SCK_PIN,
-                                                              MOSI_PIN,
-                                                              MISO_PIN,
-                                                              SS_PIN);
+    nrfx_spim_config_t spim_config =
+        NRFX_SPIM_DEFAULT_CONFIG(SCK_PIN, MOSI_PIN, MISO_PIN, SS_PIN);
     spim_config.frequency = NRFX_MHZ_TO_HZ(8);
     spim_config.mode = NRF_SPIM_MODE_1;
     spim_config.bit_order = NRF_SPIM_BIT_ORDER_MSB_FIRST;
@@ -66,12 +67,14 @@ static void us_spi_init(void)
     err = nrfx_spim_init(&spim_inst, &spim_config, spim_handler, NULL);
     if (err != NRFX_SUCCESS)
     {
-        LOG_ERR("Failed to initialize SPIM instance %d with err: %d", SPIM_INST_IDX, err);
+        LOG_ERR("Failed to initialize SPIM instance %d with err: %d", SPIM_INST_IDX,
+                err);
         return;
     }
 
-    IRQ_DIRECT_CONNECT(NRFX_IRQ_NUMBER_GET(NRF_SPIM_INST_GET(SPIM_INST_IDX)), IRQ_PRIO_LOWEST,
-                       NRFX_SPIM_INST_HANDLER_GET(SPIM_INST_IDX), 0);
+    IRQ_DIRECT_CONNECT(NRFX_IRQ_NUMBER_GET(NRF_SPIM_INST_GET(SPIM_INST_IDX)),
+                       IRQ_PRIO_LOWEST, NRFX_SPIM_INST_HANDLER_GET(SPIM_INST_IDX),
+                       0);
     irq_enable(NRFX_IRQ_NUMBER_GET(NRF_SPIM_INST_GET(SPIM_INST_IDX)));
 
     // Initialize semaphores
@@ -86,7 +89,7 @@ static struct gpio_callback data_ready_cb;
 
 // --- Bluetooth LE -----------------------------
 static K_SEM_DEFINE(ble_tx_ready_sem, 1, 1);
-struct bt_conn *current_conn;
+struct bt_conn *current_conn = NULL;
 static uint8_t ble_conn_id;
 
 static const struct bt_data ad[] = {
@@ -125,7 +128,8 @@ int start_advertise(void)
     adv_params.id = ble_conn_id;
     LOG_INF("Using BLE identity ID: %d", ble_conn_id);
 
-    int err = bt_le_adv_start(&adv_params, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
+    int err =
+        bt_le_adv_start(&adv_params, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
     if (err)
     {
         LOG_ERR("Advertising failed to start (err %d)", err);
@@ -141,7 +145,8 @@ int start_advertise(void)
     return err;
 }
 
-static void bt_received(struct bt_conn *conn, const uint8_t *const data, uint16_t len)
+static void bt_received(struct bt_conn *conn, const uint8_t *const data,
+                        uint16_t len)
 {
     LOG_INF("Received data over BLE (NUS). Len: %d", len);
     LOG_HEXDUMP_INF(data, len, "NUS RX");
@@ -180,19 +185,38 @@ static void connected(struct bt_conn *conn, uint8_t err)
         LOG_ERR("Connection failed (err %u)", err);
         return;
     }
-    LOG_INF("BLE connection established");
-    current_conn = bt_conn_ref(conn);
-    update_phy(conn);
-    k_sleep(K_MSEC(100)); // wait a bit for connection to stabilize
     struct bt_conn_info info;
     bt_conn_get_info(conn, &info);
-    LOG_INF("Connection interval: %d units (x1.25 for ms)", info.le.interval);
+
+    if (info.id == ble_conn_id)
+    {
+        LOG_INF("BLE NUS connection established");
+        current_conn = bt_conn_ref(conn);
+        update_phy(conn);
+        k_sleep(K_MSEC(100)); // wait a bit for connection to stabilize
+        LOG_INF("Connection interval: %d units (x1.25 for ms)", info.le.interval);
+    }
+    else
+    {
+        LOG_INF("BLE Mesh/Other connection established (id: %d)", info.id);
+    }
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
     LOG_INF("BLE disconnected (reason %u)", reason);
-    gpio_pin_set_dt(&ble_cnfg_ready, 0);
+
+    if (current_conn == conn)
+    {
+        LOG_INF("NUS Connection disconnected");
+        bt_conn_unref(current_conn);
+        current_conn = NULL;
+        gpio_pin_set_dt(&ble_cnfg_ready, 0);
+    }
+    else
+    {
+        LOG_INF("Non-NUS connection disconnected");
+    }
 }
 
 static void bt_sent(struct bt_conn *conn)
@@ -231,12 +255,14 @@ static int output_number(bt_mesh_output_action_t action, uint32_t number)
 
 static void prov_complete(uint16_t net_idx, uint16_t addr)
 {
-    LOG_INF("Provisioning completed with net_idx: 0x%04x, addr: 0x%04x", net_idx, addr);
+    LOG_INF("Provisioning completed with net_idx: 0x%04x, addr: 0x%04x",
+            net_idx, addr);
 }
 
 static void prov_reset(void)
 {
-    bt_mesh_prov_enable((bt_mesh_prov_bearer_t)(BT_MESH_PROV_GATT | BT_MESH_PROV_ADV));
+    bt_mesh_prov_enable(
+        (bt_mesh_prov_bearer_t)(BT_MESH_PROV_GATT | BT_MESH_PROV_ADV));
     LOG_WRN("The local node has been reset and needs reprovisioning");
 }
 
@@ -249,16 +275,94 @@ static const struct bt_mesh_prov prov = {
     .reset = prov_reset,
 };
 
-/* Composition */
-static const struct bt_mesh_elem elements[] = {
-    {
-        .loc = BT_MESH_MODEL_ID_GEN_LOCATION_SRV,
-        .model_count = 0,
-        .vnd_model_count = 0,
-        .models = NULL,
-        .vnd_models = NULL,
-    },
+/* Health Server */
+static void attention_on(const struct bt_mesh_model *mod)
+{
+    LOG_INF("Attention ON");
+}
+
+static void attention_off(const struct bt_mesh_model *mod)
+{
+    LOG_INF("Attention OFF");
+}
+
+static const struct bt_mesh_health_srv_cb health_srv_cb = {
+    .attn_on = attention_on,
+    .attn_off = attention_off,
 };
+
+static struct bt_mesh_health_srv health_srv = {
+    .cb = &health_srv_cb,
+};
+
+BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
+
+/* Data model (Custom Vendor Model)  */
+static uint8_t reassembly_buffer[BLE_PCKT_SEND_SIZE];
+
+static int handle_data_chunk(const struct bt_mesh_model *model,
+                             struct bt_mesh_msg_ctx *ctx,
+                             struct net_buf_simple *buf)
+{
+
+    if (address_is_local(bt_mesh_model_elem(model), ctx->addr))
+    {
+        // skip if message is from local node
+        return 0;
+    }
+
+    LOG_INF("<-- RX message <0x%04x>", ctx->addr);
+
+    if (buf->len < sizeof(frame_chunk_header))
+    {
+        LOG_WRN("Received chunk too short");
+        return -EINVAL;
+    }
+
+    frame_chunk_header header;
+    header.timestamp = net_buf_simple_pull_le32(buf);
+    header.offset = net_buf_simple_pull_u8(buf);
+    header.size = net_buf_simple_pull_u8(buf);
+
+    size_t data_len = header.size * 16 / 8;
+    size_t byte_offset = header.offset * 2 * 16 / 8;
+
+    if (buf->len < data_len)
+    {
+        LOG_WRN("Chunk data length mismatch");
+        return -EINVAL;
+    }
+
+    if (byte_offset + data_len > sizeof(reassembly_buffer))
+    {
+        LOG_WRN("Chunk out of bounds: off=%u, len=%u", (unsigned)byte_offset,
+                (unsigned)data_len);
+        return -EINVAL;
+    }
+
+    memcpy(&reassembly_buffer[byte_offset], buf->data, data_len);
+    LOG_INF("RX Chunk: TS=%u, Off=%u (blk), Size=%u (blk)", header.timestamp,
+            header.offset, header.size);
+
+    return 0;
+}
+
+static const struct bt_mesh_model_op vnd_model_op[] = {
+    {BT_MESH_VND_OP_WULPUS_FRAMECHUNK,
+     BT_MESH_LEN_MIN(sizeof(frame_chunk_header)), handle_data_chunk},
+    BT_MESH_MODEL_OP_END,
+};
+
+BT_MESH_MODEL_PUB_DEFINE(vnd_model_pub, NULL, BT_MESH_TX_SDU_MAX);
+
+/* Composition */
+static const struct bt_mesh_elem elements[] = {BT_MESH_ELEM(
+    0,
+    BT_MESH_MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
+                       BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub)),
+    BT_MESH_MODEL_LIST(BT_MESH_MODEL_VND(BT_COMP_ID_LF,
+                                         BT_MESH_VND_MODEL_ID_WULPUS,
+                                         vnd_model_op, &vnd_model_pub, NULL)))};
 
 static const struct bt_mesh_comp comp = {
     .cid = BT_COMP_ID_LF,
@@ -290,20 +394,21 @@ static void spi_session_thread(void)
         LOG_INF("Starting SPI session - single 804-byte transfer");
 
         // Single transfer for all 804 bytes (4 * 201)
-        // Hardware limitation is 255 bytes per transfer, so we still need multiple calls
-        // BUT we set up the descriptor once per session
+        // Hardware limitation is 255 bytes per transfer, so we still need multiple
+        // calls BUT we set up the descriptor once per session
         nrfx_spim_xfer_desc_t xfer = NRFX_SPIM_XFER_TRX(
-            m_tx_buffer, BYTES_PR_XFER_TX,
-            m_rx_buffer, BYTES_PR_XFER_RX);
+            m_tx_buffer, BYTES_PR_XFER_TX, m_rx_buffer, BYTES_PR_XFER_RX);
 
         bool xfer_failed = false;
         for (int i = 0; i < CHUNKS_PER_FRAME; i++)
         {
-            // Update pointers for this chunk (manual increment since HW has 255-byte limit)
+            // Update pointers for this chunk (manual increment since HW has 255-byte
+            // limit)
             xfer.p_tx_buffer = &m_tx_buffer[i * BYTES_PR_XFER_TX];
             xfer.p_rx_buffer = &m_rx_buffer[i * BYTES_PR_XFER_RX];
 
-            nrfx_err_t nerr = nrfx_spim_xfer(&spim_inst, &xfer, NRFX_SPIM_FLAG_REPEATED_XFER);
+            nrfx_err_t nerr =
+                nrfx_spim_xfer(&spim_inst, &xfer, NRFX_SPIM_FLAG_REPEATED_XFER);
             if (nerr != NRFX_SUCCESS)
             {
                 LOG_ERR("SPI xfer %d start failed: %d", i, nerr);
@@ -323,10 +428,8 @@ static void spi_session_thread(void)
         if (!xfer_failed)
         {
             LOG_INF("SPI session complete");
-            LOG_INF("SPI RX: SOF=0x%02X, tx_rx_id=%d, frame_nr=%d",
-                    m_rx_buffer[0],
-                    m_rx_buffer[1],
-                    (m_rx_buffer[3] << 8) | m_rx_buffer[2]);
+            LOG_INF("SPI RX: SOF=0x%02X, tx_rx_id=%d, frame_nr=%d", m_rx_buffer[0],
+                    m_rx_buffer[1], (m_rx_buffer[3] << 8) | m_rx_buffer[2]);
 
             bool all_zero = true;
             for (int i = 4; i < 100; i++)
@@ -349,7 +452,8 @@ static void spi_session_thread(void)
             tx_item.len = BLE_PCKT_SEND_SIZE;
             memcpy(&tx_item.data, m_rx_buffer, BLE_PCKT_SEND_SIZE);
 
-            uint8_t queue_used = BLE_TX_QUEUE_SIZE - k_msgq_num_free_get(&ble_tx_msgq);
+            uint8_t queue_used =
+                BLE_TX_QUEUE_SIZE - k_msgq_num_free_get(&ble_tx_msgq);
             LOG_INF("BLE queue depth used: %d/%d", queue_used, BLE_TX_QUEUE_SIZE);
 
             int qerr = k_msgq_put(&ble_tx_msgq, &tx_item, K_MSEC(10));
@@ -364,7 +468,8 @@ static void spi_session_thread(void)
 }
 
 int64_t last_gpio_interrupt_time = 0;
-static void gpio_interrupt_handler(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
+static void gpio_interrupt_handler(const struct device *dev,
+                                   struct gpio_callback *cb, uint32_t pins)
 {
     int64_t const dt_now = k_uptime_get();
     int64_t const delta = dt_now - last_gpio_interrupt_time;
@@ -372,8 +477,8 @@ static void gpio_interrupt_handler(const struct device *dev, struct gpio_callbac
     LOG_DBG("GPIO interrupt data_ready: trigger SPI session thread");
     if (delta < MIN_INTERRUPT_INTERVAL_MS)
     {
-        LOG_WRN("Ignoring spurious interrupt (dt=%lldms < %dms)",
-                delta, MIN_INTERRUPT_INTERVAL_MS);
+        LOG_WRN("Ignoring spurious interrupt (dt=%lldms < %dms)", delta,
+                MIN_INTERRUPT_INTERVAL_MS);
         return;
     }
     last_gpio_interrupt_time = dt_now;
@@ -383,21 +488,32 @@ static void gpio_interrupt_handler(const struct device *dev, struct gpio_callbac
 static void ble_tx_thread(void)
 {
     LOG_INF("BLE TX thread spawned and waiting for data to send...");
-    static struct ble_data_t tx_data;      // static to reduce stack usage
-    static int64_t last_success_ts_ms = 0; // time of last successful full-frame send
+    static struct ble_data_t tx_data; // static to reduce stack usage
+    static int64_t last_success_ts_ms =
+        0; // time of last successful full-frame send
 
     int slow_counter = 0;
     int64_t slow_last_send_time_ms = k_uptime_get();
     while (1)
     {
         k_msgq_get(&ble_tx_msgq, &tx_data, K_FOREVER);
-        LOG_INF("BLE TX thread got frame (len %d) (waited %lldms for queue)", tx_data.len, k_uptime_get() - last_gpio_interrupt_time);
+        LOG_INF("BLE TX thread got frame (len %d) (waited %lldms for queue)",
+                tx_data.len, k_uptime_get() - last_gpio_interrupt_time);
         if (tx_data.len != BLE_PCKT_SEND_SIZE)
         {
-            LOG_ERR("Unexpected frame size %d (expected %d)", tx_data.len, BLE_PCKT_SEND_SIZE);
+            LOG_ERR("Unexpected frame size %d (expected %d)", tx_data.len,
+                    BLE_PCKT_SEND_SIZE);
             continue;
         }
-        // Send the frame in 201 byte chunks (202 bytes for the first to signalize start, the last byte is irrelevant)
+
+        // Check if we have a valid BLE connection
+        if (current_conn == NULL)
+        {
+            LOG_WRN("No active BLE connection - dropping frame");
+            continue;
+        }
+        // Send the frame in 201 byte chunks (202 bytes for the first to signalize
+        // start, the last byte is irrelevant)
         bool full_frame_sent = true;
         for (unsigned i = 0; i < CHUNKS_PER_FRAME; i++)
         {
@@ -406,17 +522,21 @@ static void ble_tx_thread(void)
             unsigned retries = 10;
             do
             {
-                err = bt_nus_send(current_conn, &tx_data.data[i * BYTES_PR_XFER_RX], message_len);
+                err = bt_nus_send(current_conn, &tx_data.data[i * BYTES_PR_XFER_RX],
+                                  message_len);
                 if (err == -ENOBUFS || err == -EAGAIN)
                 {
                     /* Controller/host back-pressure: wait a bit and retry */
-                    LOG_DBG("BLE backpressure on chunk %u, retrying (%u left)...", i, retries);
+                    LOG_DBG("BLE backpressure on chunk %u, retrying (%u left)...", i,
+                            retries);
                     k_yield();
                     continue;
                 }
                 if (err)
                 {
-                    LOG_WRN("BLE send failed (chunk %u) with err: %d - retrying (%u left)....", i, err, retries);
+                    LOG_WRN("BLE send failed (chunk %u) with err: %d - retrying (%u "
+                            "left)....",
+                            i, err, retries);
                     k_sleep(K_USEC(50));
                     continue;
                 }
@@ -437,7 +557,8 @@ static void ble_tx_thread(void)
             if (last_success_ts_ms != 0)
             {
                 int64_t delta_ms = now_ms - last_success_ts_ms;
-                LOG_INF("BLE: full frame sent. dt since last success: %lld ms", (long long)delta_ms);
+                LOG_INF("BLE: full frame sent. dt since last success: %lld ms",
+                        (long long)delta_ms);
             }
             else
             {
@@ -451,13 +572,15 @@ static void ble_tx_thread(void)
                 int64_t time_since_last_slow_ms = now_ms - slow_last_send_time_ms;
                 if (time_since_last_slow_ms <= 0)
                 {
-                    LOG_WRN("BLE: Sent 20 full frames. Average rate unavailable (dt=%lld ms)",
-                            (long long)time_since_last_slow_ms);
+                    LOG_WRN(
+                        "BLE: Sent 20 full frames. Average rate unavailable (dt=%lld ms)",
+                        (long long)time_since_last_slow_ms);
                 }
                 else
                 {
-                    uint32_t fps = (uint32_t)(((uint64_t)20 * 1000U + time_since_last_slow_ms / 2) /
-                                              (uint64_t)time_since_last_slow_ms);
+                    uint32_t fps =
+                        (uint32_t)(((uint64_t)20 * 1000U + time_since_last_slow_ms / 2) /
+                                   (uint64_t)time_since_last_slow_ms);
                     LOG_WRN("BLE: Sent 20 full frames. Average rate: %u fps", fps);
                 }
                 slow_last_send_time_ms = now_ms;
@@ -467,9 +590,11 @@ static void ble_tx_thread(void)
 }
 
 // --- MAIN -------------------------------------
-K_THREAD_DEFINE(ble_tx_thread_id, 1024, ble_tx_thread, NULL, NULL, NULL, BLE_TASK_PRIO, 0, 0);
-// K_THREAD_DEFINE(spi_session_thread_id, 1024, spi_session_thread, NULL, NULL, NULL, SPI_TASK_PRIO, 0, 0);
-K_THREAD_DEFINE(ble_random_send_thread, 1024, rand_sender_thread, &ble_tx_msgq, NULL, NULL, 7, 0, 0);
+// K_THREAD_DEFINE(ble_tx_thread_id, 2048, ble_tx_thread, NULL, NULL, NULL,
+// BLE_TASK_PRIO, 0, 0); K_THREAD_DEFINE(spi_session_thread_id, 2048,
+// spi_session_thread, NULL, NULL, NULL, SPI_TASK_PRIO, 0, 0);
+// K_THREAD_DEFINE(ble_random_send_thread, 2048, rand_sender_thread,
+// &ble_tx_msgq, NULL, NULL, 7, 0, 0);
 int main(void)
 {
     LOG_WRN("Start-delay 5s");
@@ -479,24 +604,26 @@ int main(void)
     int err;
 
     LOG_INF("Initializing GPIOs...");
-    if (!gpio_is_ready_dt(&led) || !gpio_is_ready_dt(&data_ready) || !gpio_is_ready_dt(&ble_cnfg_ready))
+    if (!gpio_is_ready_dt(&led) || !gpio_is_ready_dt(&data_ready) ||
+        !gpio_is_ready_dt(&ble_cnfg_ready))
     {
         LOG_ERR("GPIO devices not ready.");
         return 0;
     }
-    err =
-        gpio_pin_configure_dt(&led, GPIO_OUTPUT_LOW) |
-        gpio_pin_configure_dt(&ble_cnfg_ready, GPIO_OUTPUT_LOW) |
-        gpio_pin_configure_dt(&data_ready, GPIO_INPUT);
+    err = gpio_pin_configure_dt(&led, GPIO_OUTPUT_LOW) |
+          gpio_pin_configure_dt(&ble_cnfg_ready, GPIO_OUTPUT_LOW) |
+          gpio_pin_configure_dt(&data_ready, GPIO_INPUT);
     if (err < 0)
     {
         LOG_ERR("Error configuring GPIO pins");
         return 0;
     }
 
-    // Register callback first, then enable interrupt to avoid missing edges during setup
+    // Register callback first, then enable interrupt to avoid missing edges
+    // during setup
     LOG_INF("Setting up data-ready callback");
-    gpio_init_callback(&data_ready_cb, gpio_interrupt_handler, BIT(data_ready.pin));
+    gpio_init_callback(&data_ready_cb, gpio_interrupt_handler,
+                       BIT(data_ready.pin));
     err = gpio_add_callback_dt(&data_ready, &data_ready_cb);
     if (err)
     {
@@ -549,7 +676,7 @@ int main(void)
         LOG_ERR("Initializing mesh failed (err %d)\n", err);
         return err;
     }
-    if (IS_ENABLED(CONFIG_SETTINGS))
+    if (IS_ENABLED(CONFIG_BT_SETTINGS))
     {
         LOG_INF("restoring the Bluetooth state (e.g. pairing keys)");
         settings_load();
@@ -560,8 +687,9 @@ int main(void)
     }
 
     /* This will be a no-op if settings_load() loaded provisioning info */
-    bt_mesh_prov_enable((bt_mesh_prov_bearer_t)(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT));
-    printk("Mesh initialized\n");
+    bt_mesh_prov_enable(
+        (bt_mesh_prov_bearer_t)(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT));
+    LOG_INF("Mesh initialized");
 
     LOG_INF("Starting BLE advertisement");
     err = start_advertise();
@@ -580,16 +708,20 @@ int main(void)
         return 0;
     }
 
-    // Initial check if pin is already active -> manually trigger the interrupt (as edge has already passed)
+    // Initial check if pin is already active -> manually trigger the interrupt
+    // (as edge has already passed)
     if (gpio_pin_get_dt(&data_ready) > 0)
     {
-        LOG_INF("MSP has data already ready. Triggering data_ready_cb manually once.");
-        gpio_interrupt_handler(data_ready.port, &data_ready_cb, BIT(data_ready.pin));
+        LOG_INF(
+            "MSP has data already ready. Triggering data_ready_cb manually once.");
+        gpio_interrupt_handler(data_ready.port, &data_ready_cb,
+                               BIT(data_ready.pin));
     }
 
     while (1)
     {
         k_sleep(K_MSEC(1000));
+        gpio_pin_toggle_dt(&led);
     }
 
     return 0;
