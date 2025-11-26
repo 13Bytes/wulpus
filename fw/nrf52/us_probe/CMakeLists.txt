@@ -11,6 +11,9 @@ project(us_probe)
 # NORDIC SDK APP START
 target_sources(app PRIVATE
     src/main.c
+    src/ble.c
+    src/mesh.c
+    src/spi.c
     src/helper.c
     src/testfunctions.c
 )

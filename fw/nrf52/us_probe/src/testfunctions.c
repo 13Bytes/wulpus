@@ -1,9 +1,9 @@
 #include "testfunctions.h"
 #include "main.h"
-
+#include "ble.h"
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_DECLARE(main, CONFIG_LOG_DEFAULT_LEVEL);
+LOG_MODULE_DECLARE(main);
 
 void send_random_data(uint8_t tx_rx_id, uint16_t meas_frame_nr, struct k_msgq *ble_tx_msgq)
 {
