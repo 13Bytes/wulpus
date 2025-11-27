@@ -25,6 +25,7 @@ extern struct bt_conn *current_conn;
 extern const struct gpio_dt_spec ble_cnfg_ready;
 
 // --- Functions ---
+void ble_init_device_name(const uint8_t *dev_uuid);
 int start_advertise(void);
 void ble_tx_thread(void);
 

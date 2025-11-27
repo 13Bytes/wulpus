@@ -7,7 +7,14 @@
     };
 
     chosen {
-        nordic,nus-uart = &uart20;
+        // Override default console/shell to use UART30 instead of UART20
+        // This allows SPI20 to be used without conflict
+        zephyr,console = &uart30;
+        zephyr,shell-uart = &uart30;
+        zephyr,uart-mcumgr = &uart30;
+        zephyr,bt-mon-uart = &uart30;
+        zephyr,bt-c2h-uart = &uart30;
+        nordic,nus-uart = &uart30;
     };
 
     leds {
@@ -51,10 +58,20 @@
     };
 };
 
+&uart20 {
+    status = "disabled";
+};
+
 &spi20 {
     status = "okay";
     compatible = "nordic,nrf-spim";
     pinctrl-0 = <&spi_master_default>;
     pinctrl-1 = <&spi_master_sleep>;
     pinctrl-names = "default", "sleep";
+};
+
+// UART30 for console/shell/RTT (has default pinctrl)
+&uart30 {
+    status = "okay";
+    current-speed = <115200>;
 };

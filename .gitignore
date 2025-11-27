@@ -8,3 +8,4 @@ sw/.venv
 local-development/
 .claude
 workspace.theia-workspace
+build.log

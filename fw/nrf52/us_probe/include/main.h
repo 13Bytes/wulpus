@@ -27,11 +27,14 @@
 #endif
 
 #define SPI_1_PRIO 1
-#define TRANSFER_INTERVAL_US 300 // Time between SPI transfers (300µs as in old firmware)
+#define TRANSFER_INTERVAL_US \
+  300 // Time between SPI transfers (300µs as in old firmware)
 
 // --- Bluetooth Definitions --------------------
-#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
+#define DEVICE_NAME_BASE "WULPUS_PROBE"
+#define DEVICE_NAME_MAX_LEN 30
+extern char device_name[DEVICE_NAME_MAX_LEN];
+extern uint8_t device_name_len;
 
 // --- Thread Priorities ------------------------
 #define MESH_TX_TASK_PRIO 3

@@ -57,7 +57,7 @@ int main(void)
     LOG_WRN("Start-delay 5s");
     k_sleep(K_MSEC(5000));
 
-    LOG_INF("Starting WULPUS nRF Firmware of %s (%s)", DEVICE_NAME, CONFIG_BOARD);
+    LOG_INF("Starting WULPUS nRF Firmware (%s)", CONFIG_BOARD);
     int err;
 
     LOG_INF("Initializing GPIOs...");
@@ -126,6 +126,10 @@ int main(void)
         dev_uuid[0] = 0xdd;
         dev_uuid[1] = 0xdd;
     }
+
+    // Initialize device name based on hardware ID
+    LOG_INF("Initializing device name...");
+    ble_init_device_name(dev_uuid);
 
     LOG_INF("Setting up Bluetooth LE Mesh");
     err = bt_mesh_init(&prov, &comp);
