@@ -1,16 +1,74 @@
 #ifndef MESH_H
 #define MESH_H
 
+#include <bluetooth/mesh/models.h>
 #include <zephyr/bluetooth/mesh.h>
 #include <zephyr/kernel.h>
 #include "ble.h"
 
 // --- Definitions ---
-#define BT_MESH_VND_MODEL_ID_WULPUS 0x0001
-#define BT_MESH_VND_OP_WULPUS_FRAMECHUNK BT_MESH_MODEL_OP_3(0x52, BT_COMP_ID_LF)
-#define BT_MESH_VND_OP_WULPUS_START_CONFIG BT_MESH_MODEL_OP_3(0x53, BT_COMP_ID_LF)
+#define BT_MESH_VND_MODEL_ID_WULPUS 0x0001 // One custom model with multiple opcodes (functionality)
+#define BT_MESH_VND_ID BT_COMP_ID_LF
+#define BT_MESH_VND_OP_WULPUS_FRAMECHUNK BT_MESH_MODEL_OP_3(0x52, BT_MESH_VND_ID)
+#define BT_MESH_VND_OP_WULPUS_START_CONFIG BT_MESH_MODEL_OP_3(0x53, BT_MESH_VND_ID)
 
 #define MESH_TX_QUEUE_SIZE 5
+
+// --- DEBUG ---
+static const uint8_t net_key[16] = {
+    0x01,
+    0x23,
+    0x45,
+    0x67,
+    0x89,
+    0xab,
+    0xcd,
+    0xef,
+    0x01,
+    0x23,
+    0x45,
+    0x67,
+    0x89,
+    0xab,
+    0xcd,
+    0xef,
+};
+static const uint8_t dev_key[16] = {
+    0x01,
+    0x23,
+    0x45,
+    0x67,
+    0x89,
+    0xab,
+    0xcd,
+    0xef,
+    0x01,
+    0x23,
+    0x45,
+    0x67,
+    0x89,
+    0xab,
+    0xcd,
+    0xef,
+};
+static const uint8_t app_key[16] = {
+    0x01,
+    0x23,
+    0x45,
+    0x67,
+    0x89,
+    0xab,
+    0xcd,
+    0xef,
+    0x01,
+    0x23,
+    0x45,
+    0x67,
+    0x89,
+    0xab,
+    0xcd,
+    0xef,
+};
 
 // --- Types ---
 struct frame_chunk_header

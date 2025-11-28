@@ -64,6 +64,8 @@ static struct bt_mesh_health_srv health_srv = {
     .cb = &health_srv_cb,
 };
 
+static struct bt_mesh_cfg_cli cfg_cli;
+
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
 /* Data model (Custom Vendor Model)  */
@@ -72,7 +74,10 @@ BT_MESH_MODEL_PUB_DEFINE(vnd_model_pub, NULL, BT_MESH_TX_SDU_MAX);
 static int mesh_receiving_start_config(const struct bt_mesh_model *model,
                                        struct bt_mesh_msg_ctx *ctx,
                                        struct net_buf_simple *buf) {
+  LOG_INF("RX Start Config check: src=0x%04x, dest=0x%04x", ctx->addr,
+          bt_mesh_model_elem(model)->rt->addr);
   if (address_is_local(bt_mesh_model_elem(model), ctx->addr)) {
+    LOG_WRN("Ignored local message from 0x%04x", ctx->addr);
     return 0;
   }
   LOG_INF("<-- RX Start Config <0x%04x>", ctx->addr);
@@ -101,7 +106,7 @@ int mesh_publish_config(const uint8_t *config_data, size_t len) {
   }
 
   struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
-      comp.elem, BT_COMP_ID_LF, BT_MESH_VND_MODEL_ID_WULPUS);
+      comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
   if (!mod || !mod->pub || !mod->pub->msg) {
     LOG_ERR("Vendor model or publication not configured");
     return -ENODEV;
@@ -111,16 +116,21 @@ int mesh_publish_config(const uint8_t *config_data, size_t len) {
     LOG_WRN("Model publication not configured. Using broadcast all (0xffff)");
     mod->pub->addr = BT_MESH_ADDR_ALL_NODES;
   }
+  mod->pub->ttl = CONFIG_BT_MESH_DEFAULT_TTL;
 
   k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
 
   bt_mesh_model_msg_init(mod->pub->msg, BT_MESH_VND_OP_WULPUS_START_CONFIG);
   net_buf_simple_add_mem(mod->pub->msg, config_data, len);
+
+  LOG_INF("TX Start Config: addr=0x%04x, ttl=%d, key=%d, len=%u",
+          mod->pub->addr, mod->pub->ttl, mod->pub->key, (unsigned)len);
+
   int err = bt_mesh_model_publish(mod);
   if (err) {
     LOG_ERR("Failed to publish config: %d", err);
   } else {
-    LOG_INF("--> TX Start Config (len=%u)", (unsigned)len);
+    LOG_INF("--> TX Start Config sent");
   }
   k_mutex_unlock(&mesh_pub_mutex);
   return err;
@@ -181,20 +191,20 @@ static const struct bt_mesh_model_op vnd_model_op[] = {
     {BT_MESH_VND_OP_WULPUS_FRAMECHUNK,
      BT_MESH_LEN_MIN(sizeof(frame_chunk_header)), mesh_receiving_data_chunk},
     {BT_MESH_VND_OP_WULPUS_START_CONFIG,
-     BT_MESH_LEN_MIN(sizeof(frame_chunk_header)), mesh_receiving_start_config},
+     BT_MESH_LEN_MIN(6), mesh_receiving_start_config},
     BT_MESH_MODEL_OP_END,
 };
 
 static const struct bt_mesh_elem elements[] = {BT_MESH_ELEM(
     0,
-    BT_MESH_MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
+    BT_MESH_MODEL_LIST(BT_MESH_MODEL_CFG_SRV, BT_MESH_MODEL_CFG_CLI(&cfg_cli),
                        BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub)),
-    BT_MESH_MODEL_LIST(BT_MESH_MODEL_VND(BT_COMP_ID_LF,
+    BT_MESH_MODEL_LIST(BT_MESH_MODEL_VND(BT_MESH_VND_ID,
                                          BT_MESH_VND_MODEL_ID_WULPUS,
                                          vnd_model_op, &vnd_model_pub, NULL)))};
 
 const struct bt_mesh_comp comp = {
-    .cid = BT_COMP_ID_LF,
+    .cid = BT_MESH_VND_ID,
     .elem_count = ARRAY_SIZE(elements),
     .elem = elements,
 };
@@ -203,7 +213,7 @@ void mesh_tx_thread(void) {
   LOG_INF("Mesh TX thread spawned and waiting for data to send...");
   static struct frame_chunk tx_data; // static to reduce stack usage
   struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
-      comp.elem, BT_COMP_ID_LF, BT_MESH_VND_MODEL_ID_WULPUS);
+      comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
 
   if (!mod) {
     LOG_ERR("Vendor model not found");
@@ -238,11 +248,8 @@ void mesh_tx_thread(void) {
     if (BT_MESH_ADDR_IS_GROUP(mod->pub->addr) ||
         mod->pub->addr == BT_MESH_ADDR_ALL_NODES) {
       LOG_WRN("Cannot send large frame (segmented) to Broadcast/Group address "
-              "(0x%04x).",
+              "(0x%04x) - trying anyways",
               mod->pub->addr);
-      LOG_WRN("Please provision the device and configure publication to a "
-              "Unicast address.");
-      continue; // Skip this frame
     }
 
     k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
@@ -269,6 +276,7 @@ void mesh_tx_thread(void) {
       net_buf_simple_add_u8(mod->pub->msg, header.size);
       net_buf_simple_add_mem(mod->pub->msg, &tx_data.data[total_sent],
                              bytes_to_send);
+      mod->pub->ttl = CONFIG_BT_MESH_DEFAULT_TTL;
 
       int err = bt_mesh_model_publish(mod);
       if (err) {

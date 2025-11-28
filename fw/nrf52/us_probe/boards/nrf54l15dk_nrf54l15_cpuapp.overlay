@@ -33,8 +33,16 @@
     buttons {
         compatible = "gpio-keys";
         data_ready_pin: data_ready_pin {
-            gpios = <&gpio1 13 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+            gpios = <&gpio1 7 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
             label = "Data Ready Pin";
+        };
+        dbg_button_2: dbg_button_2 {
+            gpios = <&gpio1 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Debug Button 2";
+        };
+        dbg_button_3: dbg_button_3 {
+            gpios = <&gpio0 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+            label = "Debug Button 3";
         };
     };
 };
