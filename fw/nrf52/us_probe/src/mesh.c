@@ -15,6 +15,16 @@ LOG_MODULE_REGISTER(mesh);
 struct bt_mesh_model *vnd_model;
 K_MSGQ_DEFINE(mesh_tx_msgq, sizeof(frame_chunk), MESH_TX_QUEUE_SIZE, 4);
 K_MUTEX_DEFINE(mesh_pub_mutex);
+K_SEM_DEFINE(mesh_send_sem, 0, 1);
+
+static void mesh_send_end(int err, void *cb_data)
+{
+  k_sem_give(&mesh_send_sem);
+}
+
+static const struct bt_mesh_send_cb send_cb = {
+    .end = mesh_send_end,
+};
 
 static uint8_t reassembly_buffer[BLE_PCKT_SEND_SIZE];
 
@@ -155,7 +165,7 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
 
   // UPDATED LOGIC: Offset = Chunk Index, Size = Bytes
   size_t data_len = header.size;
-  size_t byte_offset = header.offset * BYTES_PR_XFER_RX;
+  size_t byte_offset = header.offset * 2;
 
   if (buf->len < data_len) {
     LOG_WRN("Chunk data length mismatch");
@@ -190,8 +200,8 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
 static const struct bt_mesh_model_op vnd_model_op[] = {
     {BT_MESH_VND_OP_WULPUS_FRAMECHUNK,
      BT_MESH_LEN_MIN(sizeof(frame_chunk_header)), mesh_receiving_data_chunk},
-    {BT_MESH_VND_OP_WULPUS_START_CONFIG,
-     BT_MESH_LEN_MIN(6), mesh_receiving_start_config},
+    {BT_MESH_VND_OP_WULPUS_START_CONFIG, BT_MESH_LEN_MIN(6),
+     mesh_receiving_start_config},
     BT_MESH_MODEL_OP_END,
 };
 
@@ -222,9 +232,11 @@ void mesh_tx_thread(void) {
     LOG_ERR("Model has no pub defined");
     return;
   }
-  if (mod->pub->addr == BT_MESH_ADDR_UNASSIGNED) {
-    LOG_WRN("Model publication not configured. Using broadcast all (0xffff)");
-    mod->pub->addr = BT_MESH_ADDR_ALL_NODES;
+  if (mod->pub->addr == BT_MESH_ADDR_UNASSIGNED ||
+      mod->pub->addr == BT_MESH_ADDR_ALL_NODES)
+  {
+    LOG_INF("Setting destination to unicast address 0x0586");
+    mod->pub->addr = 0x0586;
   }
 
   while (1) {
@@ -247,8 +259,7 @@ void mesh_tx_thread(void) {
     // group addresses
     if (BT_MESH_ADDR_IS_GROUP(mod->pub->addr) ||
         mod->pub->addr == BT_MESH_ADDR_ALL_NODES) {
-      LOG_WRN("Cannot send large frame (segmented) to Broadcast/Group address "
-              "(0x%04x) - trying anyways",
+      LOG_WRN("Cannot send large frame (>11bytes aka. segmented) to Broadcast/Group address (0x%04x) - trying anyways",
               mod->pub->addr);
     }
 
@@ -278,15 +289,20 @@ void mesh_tx_thread(void) {
                              bytes_to_send);
       mod->pub->ttl = CONFIG_BT_MESH_DEFAULT_TTL;
 
-      int err = bt_mesh_model_publish(mod);
+      struct bt_mesh_msg_ctx ctx = {
+          .addr = mod->pub->addr,
+          .app_idx = mod->pub->key,
+          .send_ttl = CONFIG_BT_MESH_DEFAULT_TTL,
+      };
+
+      LOG_INF("-->     block %d (%d)", block_idx, header.timestamp);
+      int err = bt_mesh_model_send(mod, &ctx, mod->pub->msg, &send_cb, NULL);
       if (err) {
-        LOG_WRN("Mesh publish failed at block %d: %d", block_idx, err);
-        // If we failed, we should probably retry or abort, but for now let's
-        // just wait a bit
-        k_sleep(K_MSEC(10));
+        LOG_WRN("Sending failed at block %d: %d", block_idx, err);
+        break;
       } else {
-        // Only increment if successful (or if we want to skip failed chunks)
-        // For now, let's assume we move on to avoid getting stuck
+        k_sem_take(&mesh_send_sem, K_FOREVER);
+        LOG_INF("        block %d (%d) successfully sent", block_idx, header.timestamp);
         total_sent += bytes_to_send;
         block_idx += blocks_to_send;
       }
