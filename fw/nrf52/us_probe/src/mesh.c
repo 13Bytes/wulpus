@@ -99,7 +99,7 @@ static int mesh_receiving_start_config(const struct bt_mesh_model *model,
   size_t len = buf->len;
   memcpy(&cfg.data, buf->data, len);
 
-  apply_config(&cfg, len);
+  apply_config(cfg.data, len);
 
   return 0;
 }
@@ -115,7 +115,7 @@ int mesh_publish_config(const uint8_t *config_data, size_t len) {
     return -EAGAIN;
   }
 
-  struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
+  const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
       comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
   if (!mod || !mod->pub || !mod->pub->msg) {
     LOG_ERR("Vendor model or publication not configured");
@@ -222,7 +222,7 @@ const struct bt_mesh_comp comp = {
 void mesh_tx_thread(void) {
   LOG_INF("Mesh TX thread spawned and waiting for data to send...");
   static struct frame_chunk tx_data; // static to reduce stack usage
-  struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
+  const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
       comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
 
   if (!mod) {
@@ -247,7 +247,6 @@ void mesh_tx_thread(void) {
       continue;
     }
 
-    uint32_t timestamp = k_ticks_to_us_floor32(k_uptime_ticks());
     size_t total_sent = 0;
     uint16_t block_idx =
         0; // must be dividable by 2, as the number send is for each two blocks

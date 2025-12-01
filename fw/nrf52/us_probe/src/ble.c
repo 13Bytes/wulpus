@@ -1,6 +1,7 @@
 #include "ble.h"
 #include "main.h"
 #include "mesh.h"
+#include "helper.h"
 #include "spi.h"
 #include <bluetooth/services/nus.h>
 #include <zephyr/bluetooth/bluetooth.h>
