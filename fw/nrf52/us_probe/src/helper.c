@@ -1,6 +1,7 @@
 #include "helper.h"
-#include "spi.h"
 #include "main.h"
+#include "spi.h"
+#include "testfunctions.h"
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/logging/log.h>
@@ -18,6 +19,17 @@ bool address_is_local(const struct bt_mesh_elem *elem, uint16_t addr)
 void apply_config(uint8_t *const data, uint16_t len)
 {
   LOG_INF("Applying new configuration. Len: %d", len);
+
+  // Simulate job start/stop based on config length
+  if (len > 0)
+  {
+    set_mesh_job_state(true);
+  }
+  else
+  {
+    set_mesh_job_state(false);
+  }
+
   LOG_HEXDUMP_INF(data, len, "NUS RX");
   k_mutex_lock(&tx_buffer_mutex, K_FOREVER);
   memset(m_tx_buffer, 0, BYTES_PR_XFER_TX * CHUNKS_PER_FRAME); // Clear old data

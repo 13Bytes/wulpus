@@ -94,7 +94,6 @@ typedef struct config_frame config_frame;
 
 // --- Externs ---
 extern struct k_msgq mesh_tx_msgq;
-extern struct bt_mesh_model *vnd_model;
 extern struct k_mutex mesh_pub_mutex;
 
 // --- Functions ---

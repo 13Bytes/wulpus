@@ -1,11 +1,21 @@
 #include "testfunctions.h"
-#include "main.h"
 #include "ble.h"
+#include "main.h"
+#include "mesh.h"
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(main);
 
-void send_random_data(uint8_t tx_rx_id, uint16_t meas_frame_nr, struct k_msgq *ble_tx_msgq)
+static atomic_t mesh_job_active = ATOMIC_INIT(0);
+
+void set_mesh_job_state(bool active)
+{
+    atomic_set(&mesh_job_active, active ? 1 : 0);
+    LOG_INF("Sensor mock-data job state set to: %s", active ? "ACTIVE" : "INACTIVE");
+}
+
+void send_random_data(uint8_t tx_rx_id, uint16_t meas_frame_nr,
+                      struct k_msgq *ble_tx_msgq)
 {
     ble_data_t tx_item = {0};
     tx_item.len = BLE_PCKT_SEND_SIZE;
@@ -26,10 +36,9 @@ void send_random_data(uint8_t tx_rx_id, uint16_t meas_frame_nr, struct k_msgq *b
     }
 }
 
-void rand_sender_thread(void *msgq_ptr, void *unused1, void *unused2)
+void rand_sender_thread(void)
 {
     // Cast the void pointer back to k_msgq pointer
-    struct k_msgq *ble_tx_msgq = (struct k_msgq *)msgq_ptr;
 
     uint16_t meas_frame_nr = 0;
 
@@ -47,7 +56,7 @@ void rand_sender_thread(void *msgq_ptr, void *unused1, void *unused2)
         {
             int64_t run_start_ms = k_uptime_get();
 
-            send_random_data(0x00, meas_frame_nr++, ble_tx_msgq);
+            send_random_data(0x00, meas_frame_nr++, &ble_tx_msgq);
             send_count++;
 
             if ((send_count % LOG_INTERVAL_CNT) == 0)
@@ -59,7 +68,8 @@ void rand_sender_thread(void *msgq_ptr, void *unused1, void *unused2)
                 const uint32_t total_bytes = bytes_per_call * LOG_INTERVAL_CNT;
 
                 /* bytes per second = total_bytes * 1000 / total_elapsed_ms */
-                uint32_t bytes_per_sec = (uint32_t)(total_bytes * 1000ULL / total_elapsed_ms);
+                uint32_t bytes_per_sec =
+                    (uint32_t)(total_bytes * 1000ULL / total_elapsed_ms);
                 uint32_t kbps = bytes_per_sec / 1000U; /* approximate kilobytes/sec */
                 int framerate = LOG_INTERVAL_CNT * 1000U / total_elapsed_ms;
                 LOG_INF("send_random_data: %u ms elapsed; %u B/s (%u kB/s) - %u F/s",
@@ -67,7 +77,10 @@ void rand_sender_thread(void *msgq_ptr, void *unused1, void *unused2)
                 loop_start_ms = k_uptime_get();
             }
 
-            int64_t delay_ms = (1000 / FREQUENCY) - (k_uptime_get() - run_start_ms); /* FREQUENCY minus time the loop took */
+            int64_t delay_ms =
+                (1000 / FREQUENCY) -
+                (k_uptime_get() -
+                 run_start_ms); /* FREQUENCY minus time the loop took */
             if (delay_ms < 0)
             {
                 delay_ms = 0;
@@ -81,6 +94,67 @@ void rand_sender_thread(void *msgq_ptr, void *unused1, void *unused2)
         else
         {
             /* No connection; wait a bit before retrying */
+            k_sleep(K_MSEC(100));
+        }
+    }
+}
+
+void mesh_rand_sender_thread(void)
+{
+    static uint32_t send_count = 0;
+    static uint64_t current_ms = 0;
+
+    int64_t loop_start_ms = k_uptime_get();
+    int const MESH_FREQUENCY = 1;
+    int const LOG_INTERVAL_CNT = MESH_FREQUENCY * 10;
+
+    while (1)
+    {
+        if (atomic_get(&mesh_job_active))
+        {
+            int64_t run_start_ms = k_uptime_get();
+
+            // Create a random frame chunk
+            frame_chunk tx_chunk;
+            tx_chunk.header.timestamp = k_ticks_to_us_floor32(k_uptime_ticks());
+            tx_chunk.header.offset = 0; // Just a dummy offset
+            tx_chunk.header.size = 0;   // Unused by mesh_tx_thread, and avoids overflow
+
+            // Fill data
+            for (int i = 0; i < BLE_PCKT_SEND_SIZE; i++)
+            {
+                tx_chunk.data[i] = (uint8_t)(i & 0xFF);
+            }
+
+            // Send to queue
+            int qerr = k_msgq_put(&mesh_tx_msgq, &tx_chunk, K_NO_WAIT);
+            if (qerr != 0)
+            {
+                LOG_WRN("Mesh TX queue full; dropping frame (err %d)", qerr);
+            }
+            else
+            {
+                send_count++;
+            }
+
+            if ((send_count % LOG_INTERVAL_CNT) == 0)
+            {
+                current_ms = k_uptime_get();
+                uint64_t total_elapsed_ms = current_ms - loop_start_ms;
+                LOG_INF("mesh_rand_sender: %d frames sent in %u ms", LOG_INTERVAL_CNT,
+                        (uint32_t)total_elapsed_ms);
+                loop_start_ms = k_uptime_get();
+            }
+
+            int64_t delay_ms =
+                (1000 / MESH_FREQUENCY) - (k_uptime_get() - run_start_ms);
+            if (delay_ms > 0)
+            {
+                k_sleep(K_MSEC(delay_ms));
+            }
+        }
+        else
+        {
             k_sleep(K_MSEC(100));
         }
     }

@@ -12,7 +12,6 @@
 LOG_MODULE_REGISTER(mesh);
 
 // --- Globals ---
-struct bt_mesh_model *vnd_model;
 K_MSGQ_DEFINE(mesh_tx_msgq, sizeof(frame_chunk), MESH_TX_QUEUE_SIZE, 4);
 K_MUTEX_DEFINE(mesh_pub_mutex);
 K_SEM_DEFINE(mesh_send_sem, 0, 1);

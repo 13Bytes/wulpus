@@ -82,6 +82,7 @@ void dbg_btn_2_thread(void)
         uint8_t mock_config[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                                  0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
         mesh_publish_config(mock_config, sizeof(mock_config));
+        apply_config(mock_config, sizeof(mock_config));
     }
 }
 
@@ -100,6 +101,8 @@ K_THREAD_DEFINE(mesh_tx_thread_id, 4096 * 2, mesh_tx_thread, NULL, NULL, NULL,
 K_THREAD_DEFINE(spi_session_thread_id, 2048, spi_session_thread, NULL, NULL,
                 NULL, SPI_TASK_PRIO, 0, 0);
 K_THREAD_DEFINE(dbg_btn_2_thread_id, 4096 * 2, dbg_btn_2_thread, NULL, NULL, NULL,
+                7, 0, 0);
+K_THREAD_DEFINE(mesh_rand_sender_thread_id, 2048, mesh_rand_sender_thread, NULL, NULL, NULL,
                 7, 0, 0);
 
 int main(void)
@@ -287,9 +290,6 @@ int main(void)
     /* This will be a no-op if settings_load() loaded provisioning info */
     bt_mesh_prov_enable(
         (bt_mesh_prov_bearer_t)(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT));
-
-    vnd_model = bt_mesh_model_find_vnd(comp.elem, BT_MESH_VND_ID,
-                                       BT_MESH_VND_MODEL_ID_WULPUS);
 
     LOG_INF("Mesh initialized");
 
