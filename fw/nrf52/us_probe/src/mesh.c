@@ -12,6 +12,7 @@
 LOG_MODULE_REGISTER(mesh);
 
 // --- Globals ---
+struct bt_mesh_model *vnd_model;
 K_MSGQ_DEFINE(mesh_tx_msgq, sizeof(frame_chunk), MESH_TX_QUEUE_SIZE, 4);
 K_MUTEX_DEFINE(mesh_pub_mutex);
 K_SEM_DEFINE(mesh_send_sem, 0, 1);
@@ -28,17 +29,20 @@ static const struct bt_mesh_send_cb send_cb = {
 static uint8_t reassembly_buffer[BLE_PCKT_SEND_SIZE];
 
 // --- Functions ---
-static int output_number(bt_mesh_output_action_t action, uint32_t number) {
+static int output_number(bt_mesh_output_action_t action, uint32_t number)
+{
   LOG_INF("OOB Number: %u\n", number);
   return 0;
 }
-
-static void prov_complete(uint16_t net_idx, uint16_t addr) {
+static void prov_complete(uint16_t net_idx, uint16_t addr)
+{
   LOG_INF("Provisioning completed with net_idx: 0x%04x, addr: 0x%04x", net_idx,
           addr);
+  mesh_request_gateway_addr();
 }
 
-static void prov_reset(void) {
+static void prov_reset(void)
+{
   bt_mesh_prov_enable(
       (bt_mesh_prov_bearer_t)(BT_MESH_PROV_GATT | BT_MESH_PROV_ADV));
   LOG_WRN("The local node has been reset and needs reprovisioning");
@@ -56,11 +60,13 @@ const struct bt_mesh_prov prov = {
 };
 
 /* Health Server */
-static void attention_on(const struct bt_mesh_model *mod) {
+static void attention_on(const struct bt_mesh_model *mod)
+{
   LOG_INF("Attention ON");
 }
 
-static void attention_off(const struct bt_mesh_model *mod) {
+static void attention_off(const struct bt_mesh_model *mod)
+{
   LOG_INF("Attention OFF");
 }
 
@@ -80,17 +86,144 @@ BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 /* Data model (Custom Vendor Model)  */
 BT_MESH_MODEL_PUB_DEFINE(vnd_model_pub, NULL, BT_MESH_TX_SDU_MAX);
 
+int mesh_publish_self_gateway()
+{
+  uint16_t my_addr = bt_mesh_primary_addr();
+  return mesh_send_gateway_addr(my_addr);
+}
+int mesh_send_gateway_addr(uint16_t addr)
+{
+  LOG_INF("Publishing gateway-addr: 0x%04x", addr);
+  const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
+      comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
+
+  if (!mod || !mod->pub || !mod->pub->msg)
+  {
+    LOG_ERR("mesh_send_gateway_addr: model or publication not configured");
+    return -ENODEV;
+  }
+
+  k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
+  bt_mesh_model_msg_init(mod->pub->msg, BT_MESH_VND_OP_WULPUS_GATEWAY_UPDATE);
+  net_buf_simple_add_le16(mod->pub->msg, addr);
+
+  mod->pub->addr = WULPUS_GROUP_ADDR;
+  struct bt_mesh_msg_ctx ctx = {
+      .addr = WULPUS_GROUP_ADDR,
+      .app_idx = mod->pub->key,
+      .send_ttl = CONFIG_BT_MESH_DEFAULT_TTL,
+  };
+  int err = bt_mesh_model_send(mod, &ctx, mod->pub->msg, NULL, NULL);
+
+  // Set new address as gateway
+  mod->pub->addr = addr;
+
+  k_mutex_unlock(&mesh_pub_mutex);
+
+  if (err)
+  {
+    LOG_ERR("Failed to send gateway update: %d", err);
+  }
+  else
+  {
+    LOG_INF("Publishing gateway-addr: 0x%04x succeeded", addr);
+  }
+  return err;
+}
+
+void mesh_request_gateway_addr(void)
+{
+  const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
+      comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
+
+  if (!mod || !mod->pub || !mod->pub->msg)
+  {
+    LOG_ERR("mesh_request_gateway_addr: model or publication not configured");
+    return;
+  }
+  uint16_t my_addr = bt_mesh_primary_addr();
+
+  k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
+  bt_mesh_model_msg_init(mod->pub->msg, BT_MESH_VND_OP_WULPUS_GATEWAY_REQ);
+  net_buf_simple_add_mem(mod->pub->msg, &my_addr, sizeof(my_addr));
+
+  uint16_t old_addr = mod->pub->addr;
+  mod->pub->addr = WULPUS_GROUP_ADDR;
+  struct bt_mesh_msg_ctx ctx = {
+      .addr = WULPUS_GROUP_ADDR,
+      .app_idx = mod->pub->key,
+      .send_ttl = CONFIG_BT_MESH_DEFAULT_TTL,
+  };
+  int err = bt_mesh_model_send(mod, &ctx, mod->pub->msg, NULL, NULL);
+  if (err)
+  {
+    LOG_ERR("Failed to request gateway addr: %d", err);
+  }
+  else
+  {
+    LOG_INF("Sent Gateway Request");
+  }
+
+  mod->pub->addr = old_addr;
+  k_mutex_unlock(&mesh_pub_mutex);
+}
+
+static int mesh_receiving_gateway_update(const struct bt_mesh_model *model,
+                                         struct bt_mesh_msg_ctx *ctx,
+                                         struct net_buf_simple *buf)
+{
+  LOG_INF("RX Gateway Update check: src=0x%04x", ctx->addr);
+  if (buf->len < 2)
+  {
+    return -EINVAL;
+  }
+  uint16_t new_addr = net_buf_simple_pull_le16(buf);
+  LOG_INF("Gateway address updated to 0x%04x (from 0x%04x)", new_addr,
+          ctx->addr);
+
+  struct bt_mesh_model *mod = (struct bt_mesh_model *)model;
+  if (mod->pub)
+  {
+    mod->pub->addr = new_addr;
+    LOG_INF("Model publication address set to 0x%04x", mod->pub->addr);
+  }
+  else
+  {
+    LOG_ERR("Model has no publication context");
+  }
+  return 0;
+}
+
+static int mesh_receiving_gateway_req(const struct bt_mesh_model *model,
+                                      struct bt_mesh_msg_ctx *ctx,
+                                      struct net_buf_simple *buf)
+{
+  LOG_INF("Received Gateway Request from 0x%04x", ctx->addr);
+
+  if (model->pub->addr != BT_MESH_ADDR_UNASSIGNED &&
+      model->pub->addr != BT_MESH_ADDR_ALL_NODES &&
+      model->pub->addr != WULPUS_GROUP_ADDR)
+  {
+    mesh_send_gateway_addr(model->pub->addr);
+  }
+
+  return 0;
+}
+
 static int mesh_receiving_start_config(const struct bt_mesh_model *model,
                                        struct bt_mesh_msg_ctx *ctx,
-                                       struct net_buf_simple *buf) {
+                                       struct net_buf_simple *buf)
+{
   LOG_INF("RX Start Config check: src=0x%04x, dest=0x%04x", ctx->addr,
           bt_mesh_model_elem(model)->rt->addr);
-  if (address_is_local(bt_mesh_model_elem(model), ctx->addr)) {
+  if (address_is_local(bt_mesh_model_elem(model), ctx->addr))
+  {
     LOG_WRN("Ignored local message from 0x%04x", ctx->addr);
     return 0;
   }
   LOG_INF("<-- RX Start Config <0x%04x>", ctx->addr);
-  if (buf->len < sizeof(frame_chunk_header)) {
+  if (buf->len < sizeof(frame_chunk_header))
+  {
     return -EINVAL;
   }
 
@@ -103,31 +236,31 @@ static int mesh_receiving_start_config(const struct bt_mesh_model *model,
   return 0;
 }
 
-int mesh_publish_config(const uint8_t *config_data, size_t len) {
-  if (!config_data || len == 0 || len > BLE_SINGLE_PCKT_SIZE) {
+int mesh_publish_config(const uint8_t *config_data, size_t len)
+{
+  if (!config_data || len == 0 || len > BLE_SINGLE_PCKT_SIZE)
+  {
     LOG_ERR("Invalid config data: len=%u", (unsigned)len);
     return -EINVAL;
   }
 
-  if (!bt_mesh_is_provisioned()) {
+  if (!bt_mesh_is_provisioned())
+  {
     LOG_WRN("Cannot publish config: not provisioned");
     return -EAGAIN;
   }
 
   const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
       comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
-  if (!mod || !mod->pub || !mod->pub->msg) {
+  if (!mod || !mod->pub || !mod->pub->msg)
+  {
     LOG_ERR("Vendor model or publication not configured");
     return -ENODEV;
   }
 
-  if (mod->pub->addr == BT_MESH_ADDR_UNASSIGNED) {
-    LOG_WRN("Model publication not configured. Using broadcast all (0xffff)");
-    mod->pub->addr = BT_MESH_ADDR_ALL_NODES;
-  }
-  mod->pub->ttl = CONFIG_BT_MESH_DEFAULT_TTL;
-
   k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
+  uint16_t old_addr = mod->pub->addr;
+  mod->pub->addr = BT_MESH_ADDR_ALL_NODES;
 
   bt_mesh_model_msg_init(mod->pub->msg, BT_MESH_VND_OP_WULPUS_START_CONFIG);
   net_buf_simple_add_mem(mod->pub->msg, config_data, len);
@@ -135,12 +268,22 @@ int mesh_publish_config(const uint8_t *config_data, size_t len) {
   LOG_INF("TX Start Config: addr=0x%04x, ttl=%d, key=%d, len=%u",
           mod->pub->addr, mod->pub->ttl, mod->pub->key, (unsigned)len);
 
-  int err = bt_mesh_model_publish(mod);
-  if (err) {
+  mod->pub->addr = WULPUS_GROUP_ADDR;
+  struct bt_mesh_msg_ctx ctx = {
+      .addr = BT_MESH_ADDR_ALL_NODES,
+      .app_idx = mod->pub->key,
+      .send_ttl = CONFIG_BT_MESH_DEFAULT_TTL,
+  };
+  int err = bt_mesh_model_send(mod, &ctx, mod->pub->msg, NULL, NULL);
+  if (err)
+  {
     LOG_ERR("Failed to publish config: %d", err);
-  } else {
+  }
+  else
+  {
     LOG_INF("--> TX Start Config sent");
   }
+  mod->pub->addr = old_addr;
   k_mutex_unlock(&mesh_pub_mutex);
   return err;
 }
@@ -149,10 +292,12 @@ int mesh_publish_config(const uint8_t *config_data, size_t len) {
 // Assemble chunks and send them out over BLE
 static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
                                      struct bt_mesh_msg_ctx *ctx,
-                                     struct net_buf_simple *buf) {
+                                     struct net_buf_simple *buf)
+{
   LOG_INF("<-- RX message <0x%04x>", ctx->addr);
 
-  if (buf->len < sizeof(frame_chunk_header)) {
+  if (buf->len < sizeof(frame_chunk_header))
+  {
     LOG_WRN("Received chunk too short");
     return -EINVAL;
   }
@@ -166,12 +311,14 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
   size_t data_len = header.size;
   size_t byte_offset = header.offset * 2;
 
-  if (buf->len < data_len) {
+  if (buf->len < data_len)
+  {
     LOG_WRN("Chunk data length mismatch");
     return -EINVAL;
   }
 
-  if (byte_offset + data_len > sizeof(reassembly_buffer)) {
+  if (byte_offset + data_len > sizeof(reassembly_buffer))
+  {
     LOG_WRN("Chunk out of bounds: off=%u, len=%u", (unsigned)byte_offset,
             (unsigned)data_len);
     return -EINVAL;
@@ -182,13 +329,15 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
           header.offset, header.size);
 
   // Forward to BLE if connected and this is the last chunk
-  if (current_conn && header.offset == CHUNKS_PER_FRAME - 1) {
+  if (current_conn && header.offset == CHUNKS_PER_FRAME - 1)
+  {
     ble_data_t tx_item;
     tx_item.len = BLE_PCKT_SEND_SIZE;
     memcpy(tx_item.data, reassembly_buffer, BLE_PCKT_SEND_SIZE);
 
     // Use K_NO_WAIT to avoid blocking Mesh thread
-    if (k_msgq_put(&ble_tx_msgq, &tx_item, K_NO_WAIT) != 0) {
+    if (k_msgq_put(&ble_tx_msgq, &tx_item, K_NO_WAIT) != 0)
+    {
       LOG_WRN("BLE TX queue full, dropping forwarded mesh frame");
     }
   }
@@ -196,53 +345,53 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
   return 0;
 }
 
-static const struct bt_mesh_model_op vnd_model_op[] = {
-    {BT_MESH_VND_OP_WULPUS_FRAMECHUNK,
-     BT_MESH_LEN_MIN(sizeof(frame_chunk_header)), mesh_receiving_data_chunk},
-    {BT_MESH_VND_OP_WULPUS_START_CONFIG, BT_MESH_LEN_MIN(6),
-     mesh_receiving_start_config},
-    BT_MESH_MODEL_OP_END,
-};
-
-static const struct bt_mesh_elem elements[] = {BT_MESH_ELEM(
-    0,
-    BT_MESH_MODEL_LIST(BT_MESH_MODEL_CFG_SRV, BT_MESH_MODEL_CFG_CLI(&cfg_cli),
-                       BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub)),
-    BT_MESH_MODEL_LIST(BT_MESH_MODEL_VND(BT_MESH_VND_ID,
-                                         BT_MESH_VND_MODEL_ID_WULPUS,
-                                         vnd_model_op, &vnd_model_pub, NULL)))};
-
-const struct bt_mesh_comp comp = {
-    .cid = BT_MESH_VND_ID,
-    .elem_count = ARRAY_SIZE(elements),
-    .elem = elements,
-};
-
-void mesh_tx_thread(void) {
+void mesh_tx_thread(void)
+{
   LOG_INF("Mesh TX thread spawned and waiting for data to send...");
   static struct frame_chunk tx_data; // static to reduce stack usage
   const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
       comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
 
-  if (!mod) {
+  if (!mod)
+  {
     LOG_ERR("Vendor model not found");
     return;
-  } else if (!mod->pub || !mod->pub->msg) {
+  }
+  else if (!mod->pub || !mod->pub->msg)
+  {
     LOG_ERR("Model has no pub defined");
     return;
   }
-  if (mod->pub->addr == BT_MESH_ADDR_UNASSIGNED ||
-      mod->pub->addr == BT_MESH_ADDR_ALL_NODES)
+
+  // Wait for mesh to be initialized and provisioned
+  while (!bt_mesh_is_provisioned())
   {
-    LOG_INF("Setting destination to unicast address 0x0586");
-    mod->pub->addr = 0x0586;
+    k_sleep(K_SECONDS(1));
+  }
+  while (mod->pub->addr == BT_MESH_ADDR_UNASSIGNED ||
+         mod->pub->addr == BT_MESH_ADDR_ALL_NODES)
+  {
+    LOG_WRN("Destination address not set. Waiting for Gateway Update...");
+    mesh_request_gateway_addr();
+    k_sleep(K_SECONDS(30));
   }
 
-  while (1) {
+  while (1)
+  {
     k_msgq_get(&mesh_tx_msgq, &tx_data, K_FOREVER);
     LOG_INF("Mesh TX thread got frame");
 
-    if (!bt_mesh_is_provisioned()) {
+    if (!bt_mesh_is_provisioned())
+    {
+      continue;
+    }
+    // Check if we are trying to send segmented data to a broadcast/group
+    // address Segmented messages (required for len > 11) are NOT allowed to  group addresses
+    if (tx_data.header.size > 5 && (BT_MESH_ADDR_IS_GROUP(mod->pub->addr) ||
+                                    mod->pub->addr == BT_MESH_ADDR_ALL_NODES))
+    {
+      LOG_WRN("Cannot send large frame (>11bytes aka. segmented) to "
+              "Broadcast/Group address - waiting for Gateway Update...");
       continue;
     }
 
@@ -252,24 +401,17 @@ void mesh_tx_thread(void) {
 
     LOG_INF("--> TX message (start)");
 
-    // Check if we are trying to send segmented data to a broadcast/group
-    // address Segmented messages (required for len > 11) are NOT allowed to
-    // group addresses
-    if (BT_MESH_ADDR_IS_GROUP(mod->pub->addr) ||
-        mod->pub->addr == BT_MESH_ADDR_ALL_NODES) {
-      LOG_WRN("Cannot send large frame (>11bytes aka. segmented) to Broadcast/Group address (0x%04x) - trying anyways",
-              mod->pub->addr);
-    }
-
     k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
-    while (total_sent < BLE_PCKT_SEND_SIZE) {
+    while (total_sent < BLE_PCKT_SEND_SIZE)
+    {
       bt_mesh_model_msg_init(mod->pub->msg, BT_MESH_VND_OP_WULPUS_FRAMECHUNK);
       size_t remaining_bytes = BLE_PCKT_SEND_SIZE - total_sent;
       // Max payload of BLE is ~370 bytes; Header is 6 bytes
       // We use 16-byte blocks. 364 * 8 / 16 ≈ 180 blocks max (360 bytes)
       size_t blocks_to_send = remaining_bytes / 2;
       blocks_to_send = MIN(blocks_to_send, 180);
-      if (blocks_to_send == 0 && remaining_bytes > 0) {
+      if (blocks_to_send == 0 && remaining_bytes > 0)
+      {
         LOG_ERR("Remaining data less than 16 bytes - This shouldn't happen");
         blocks_to_send = 1;
       }
@@ -295,12 +437,16 @@ void mesh_tx_thread(void) {
 
       LOG_INF("-->     block %d (%d)", block_idx, header.timestamp);
       int err = bt_mesh_model_send(mod, &ctx, mod->pub->msg, &send_cb, NULL);
-      if (err) {
+      if (err)
+      {
         LOG_WRN("Sending failed at block %d: %d", block_idx, err);
         break;
-      } else {
+      }
+      else
+      {
         k_sem_take(&mesh_send_sem, K_FOREVER);
-        LOG_INF("        block %d (%d) successfully sent", block_idx, header.timestamp);
+        LOG_INF("        block %d (%d) successfully sent", block_idx,
+                header.timestamp);
         total_sent += bytes_to_send;
         block_idx += blocks_to_send;
       }
@@ -311,3 +457,25 @@ void mesh_tx_thread(void) {
     k_mutex_unlock(&mesh_pub_mutex);
   }
 }
+
+static const struct bt_mesh_model_op vnd_model_op[] = {
+    {BT_MESH_VND_OP_WULPUS_FRAMECHUNK, BT_MESH_LEN_MIN(sizeof(frame_chunk_header)), mesh_receiving_data_chunk},
+    {BT_MESH_VND_OP_WULPUS_START_CONFIG, BT_MESH_LEN_MIN(6), mesh_receiving_start_config},
+    {BT_MESH_VND_OP_WULPUS_GATEWAY_UPDATE, BT_MESH_LEN_MIN(2), mesh_receiving_gateway_update},
+    {BT_MESH_VND_OP_WULPUS_GATEWAY_REQ, BT_MESH_LEN_MIN(1), mesh_receiving_gateway_req},
+    BT_MESH_MODEL_OP_END,
+};
+
+static const struct bt_mesh_elem elements[] = {BT_MESH_ELEM(
+    0,
+    BT_MESH_MODEL_LIST(BT_MESH_MODEL_CFG_SRV, BT_MESH_MODEL_CFG_CLI(&cfg_cli),
+                       BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub)),
+    BT_MESH_MODEL_LIST(BT_MESH_MODEL_VND(BT_MESH_VND_ID,
+                                         BT_MESH_VND_MODEL_ID_WULPUS,
+                                         vnd_model_op, &vnd_model_pub, NULL)))};
+
+const struct bt_mesh_comp comp = {
+    .cid = BT_MESH_VND_ID,
+    .elem_count = ARRAY_SIZE(elements),
+    .elem = elements,
+};

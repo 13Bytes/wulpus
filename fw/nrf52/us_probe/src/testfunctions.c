@@ -105,8 +105,8 @@ void mesh_rand_sender_thread(void)
     static uint64_t current_ms = 0;
 
     int64_t loop_start_ms = k_uptime_get();
-    int const MESH_FREQUENCY = 1;
-    int const LOG_INTERVAL_CNT = MESH_FREQUENCY * 10;
+    float const MESH_FREQUENCY = 0.05;
+    int const LOG_INTERVAL_CNT = 10;
 
     while (1)
     {

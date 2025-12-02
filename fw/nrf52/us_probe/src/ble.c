@@ -102,7 +102,7 @@ int start_advertise(void)
   return err;
 }
 
-static void bt_received(struct bt_conn *conn, const uint8_t *const data,
+static void bt_received(struct bt_conn *const conn, const uint8_t *const data,
                         uint16_t len)
 {
   LOG_INF("Received data over BLE (NUS). Len: %d", len);
@@ -138,9 +138,12 @@ static void connected(struct bt_conn *conn, uint8_t err)
   {
     LOG_INF("BLE NUS connection established");
     current_conn = bt_conn_ref(conn);
+    k_sleep(K_MSEC(500)); // wait a bit for connection to stabilize
     update_phy(conn);
-    k_sleep(K_MSEC(100)); // wait a bit for connection to stabilize
+    k_sleep(K_MSEC(50)); // wait a bit for PHY update to take effect
     LOG_INF("Connection interval: %d units (x1.25 for ms)", info.le.interval);
+    LOG_INF("It seems like I'm now the gateway - broadcasting my address to the Mesh");
+    mesh_publish_self_gateway();
   }
   else
   {

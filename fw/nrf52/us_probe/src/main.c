@@ -100,10 +100,10 @@ K_THREAD_DEFINE(mesh_tx_thread_id, 4096 * 2, mesh_tx_thread, NULL, NULL, NULL,
                 MESH_TX_TASK_PRIO, 0, 0);
 K_THREAD_DEFINE(spi_session_thread_id, 2048, spi_session_thread, NULL, NULL,
                 NULL, SPI_TASK_PRIO, 0, 0);
-K_THREAD_DEFINE(dbg_btn_2_thread_id, 4096 * 2, dbg_btn_2_thread, NULL, NULL, NULL,
-                7, 0, 0);
-K_THREAD_DEFINE(mesh_rand_sender_thread_id, 2048, mesh_rand_sender_thread, NULL, NULL, NULL,
-                7, 0, 0);
+K_THREAD_DEFINE(dbg_btn_2_thread_id, 4096 * 2, dbg_btn_2_thread, NULL, NULL,
+                NULL, 7, 0, 0);
+K_THREAD_DEFINE(mesh_rand_sender_thread_id, 2048, mesh_rand_sender_thread, NULL,
+                NULL, NULL, 7, 0, 0);
 
 int main(void)
 {
@@ -271,6 +271,19 @@ int main(void)
     else
     {
         LOG_INF("Vendor Model bound");
+    }
+
+    /* Subscribe to Wulpus Group Address */
+    err = bt_mesh_cfg_cli_mod_sub_add_vnd(net_idx, addr, addr, WULPUS_GROUP_ADDR,
+                                          BT_MESH_VND_MODEL_ID_WULPUS,
+                                          BT_MESH_VND_ID, &bind_status);
+    if (err)
+    {
+        LOG_ERR("Failed to subscribe to Group Address (err %d)", err);
+    }
+    else
+    {
+        LOG_INF("Subscribed to Group Address 0x%04x", WULPUS_GROUP_ADDR);
     }
 
     /* Bind to Health model */
