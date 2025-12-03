@@ -51,39 +51,41 @@ static void gpio_interrupt_handler(const struct device *dev,
     k_sem_give(&data_ready_trigger_sem);
 }
 
-K_SEM_DEFINE(dbg_btn_2_sem, 0, 5);
+static void button_2_work_handler(struct k_work *work)
+{
+    LOG_INF("Button 2 pressed");
+    LOG_INF("Sending start-config");
+    uint8_t mock_config[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                             0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+    mesh_publish_config(mock_config, sizeof(mock_config));
+    apply_config(mock_config, sizeof(mock_config));
+}
+
+K_WORK_DEFINE(button_2_work, button_2_work_handler);
+
+static void button_3_work_handler(struct k_work *work)
+{
+    LOG_INF("Button 3 pressed");
+    LOG_INF("Sending stop-config");
+    uint8_t mock_config[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    mesh_publish_config(mock_config, sizeof(mock_config));
+    apply_config(mock_config, sizeof(mock_config));
+}
+
+K_WORK_DEFINE(button_3_work, button_3_work_handler);
 
 static void dbg_button_2_handler(const struct device *dev,
                                  struct gpio_callback *cb, uint32_t pins)
 {
-    LOG_INF("Button 2 pressed");
-    k_sem_give(&dbg_btn_2_sem);
+    k_work_submit(&button_2_work);
 }
 
 static void dbg_button_3_handler(const struct device *dev,
                                  struct gpio_callback *cb, uint32_t pins)
 {
-    LOG_INF("Button 3 pressed");
-    static struct frame_chunk tx_data;
-    tx_data.header.timestamp = k_ticks_to_us_floor32(k_uptime_ticks());
-    // Fill with some mock data
-    for (int i = 0; i < BLE_PCKT_SEND_SIZE; i++)
-    {
-        tx_data.data[i] = i;
-    }
-    k_msgq_put(&mesh_tx_msgq, &tx_data, K_NO_WAIT);
-}
-
-void dbg_btn_2_thread(void)
-{
-    while (1)
-    {
-        k_sem_take(&dbg_btn_2_sem, K_FOREVER);
-        uint8_t mock_config[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                                 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
-        mesh_publish_config(mock_config, sizeof(mock_config));
-        apply_config(mock_config, sizeof(mock_config));
-    }
+    k_work_submit(&button_3_work);
 }
 
 // --- Mesh -------------------------------------
@@ -100,8 +102,6 @@ K_THREAD_DEFINE(mesh_tx_thread_id, 4096 * 2, mesh_tx_thread, NULL, NULL, NULL,
                 MESH_TX_TASK_PRIO, 0, 0);
 K_THREAD_DEFINE(spi_session_thread_id, 2048, spi_session_thread, NULL, NULL,
                 NULL, SPI_TASK_PRIO, 0, 0);
-K_THREAD_DEFINE(dbg_btn_2_thread_id, 4096 * 2, dbg_btn_2_thread, NULL, NULL,
-                NULL, 7, 0, 0);
 K_THREAD_DEFINE(mesh_rand_sender_thread_id, 2048, mesh_rand_sender_thread, NULL,
                 NULL, NULL, 7, 0, 0);
 
