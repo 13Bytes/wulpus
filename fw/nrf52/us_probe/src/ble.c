@@ -20,7 +20,7 @@ uint8_t ble_conn_id;
 char device_name[DEVICE_NAME_MAX_LEN] = {DEVICE_NAME_BASE};
 uint8_t device_name_len = sizeof(DEVICE_NAME_BASE) - 1;
 
-K_MSGQ_DEFINE(ble_tx_msgq, sizeof(struct ble_data_t), BLE_TX_QUEUE_SIZE, 4);
+K_MSGQ_DEFINE(ble_tx_msgq, sizeof(frame_chunk), BLE_TX_QUEUE_SIZE, 4);
 static K_SEM_DEFINE(ble_tx_ready_sem, 1, 1);
 
 static struct bt_data ad[] = {
@@ -193,7 +193,7 @@ struct bt_nus_cb nus_callbacks = {
 void ble_tx_thread(void)
 {
   LOG_INF("BLE TX thread spawned and waiting for data to send...");
-  static struct ble_data_t tx_data; // static to reduce stack usage
+  static frame_chunk tx_data; // static to reduce stack usage
   static int64_t last_success_ts_ms =
       0; // time of last successful full-frame send
 
@@ -204,10 +204,10 @@ void ble_tx_thread(void)
   {
     k_msgq_get(&ble_tx_msgq, &tx_data, K_FOREVER);
     LOG_INF("BLE TX thread got frame (len %d) (waited %lldms for queue)",
-            tx_data.len, k_uptime_get() - last_gpio_interrupt_time);
-    if (tx_data.len != BLE_PCKT_SEND_SIZE)
+            tx_data.header.size, k_uptime_get() - last_gpio_interrupt_time);
+    if (tx_data.header.size != BLE_PCKT_SEND_SIZE)
     {
-      LOG_ERR("Unexpected frame size %d (expected %d)", tx_data.len,
+      LOG_ERR("Unexpected frame size %d (expected %d)", tx_data.header.size,
               BLE_PCKT_SEND_SIZE);
       continue;
     }

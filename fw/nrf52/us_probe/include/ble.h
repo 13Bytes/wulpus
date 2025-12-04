@@ -12,13 +12,6 @@
 #define BLE_PCKT_SEND_SIZE (201 * 4) // BYTES_PR_XFER_RX * CHUNKS_PER_FRAME
 #define BLE_TX_QUEUE_SIZE 5
 
-// --- Types ---
-struct ble_data_t {
-  uint8_t data[BLE_PCKT_SEND_SIZE];
-  uint16_t len;
-};
-typedef struct ble_data_t ble_data_t;
-
 // --- Externs ---
 extern struct k_msgq ble_tx_msgq;
 extern struct bt_conn *current_conn;

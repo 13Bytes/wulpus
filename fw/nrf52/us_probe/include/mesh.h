@@ -44,8 +44,15 @@ struct frame_chunk_header {
 } __packed;
 typedef struct frame_chunk_header frame_chunk_header;
 
+struct frame_header
+{
+  uint32_t timestamp; // Sequence ID (Microseconds)
+  uint16_t size;      // Count of bytes
+} __packed;
+typedef struct frame_header frame_header;
+
 struct frame_chunk {
-  frame_chunk_header header;
+  frame_header header;
   uint8_t data[BLE_PCKT_SEND_SIZE];
 } __packed;
 typedef struct frame_chunk frame_chunk;
@@ -59,6 +66,7 @@ typedef struct config_frame config_frame;
 extern struct k_msgq mesh_tx_msgq;
 extern struct bt_mesh_model *vnd_model;
 extern struct k_mutex mesh_pub_mutex;
+extern bool i_am_gateway;
 
 // --- Functions ---
 extern const struct bt_mesh_prov prov;

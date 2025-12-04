@@ -127,7 +127,6 @@ void spi_session_thread(void) {
       // Build one full frame and enqueue as a single item
       frame_chunk chunk = {0};
       chunk.header.timestamp = k_uptime_get_32();
-      chunk.header.offset = 0;
       chunk.header.size = BLE_PCKT_SEND_SIZE;
       memcpy(&chunk.data, m_rx_buffer, BLE_PCKT_SEND_SIZE);
 

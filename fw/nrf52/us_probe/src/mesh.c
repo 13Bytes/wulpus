@@ -16,6 +16,7 @@ struct bt_mesh_model *vnd_model;
 K_MSGQ_DEFINE(mesh_tx_msgq, sizeof(frame_chunk), MESH_TX_QUEUE_SIZE, 4);
 K_MUTEX_DEFINE(mesh_pub_mutex);
 K_SEM_DEFINE(mesh_send_sem, 0, 1);
+bool i_am_gateway = false;
 
 static void mesh_send_end(int err, void *cb_data)
 {
@@ -148,12 +149,14 @@ BT_MESH_MODEL_PUB_DEFINE(vnd_model_pub, NULL, BT_MESH_TX_SDU_MAX);
 int mesh_publish_self_gateway()
 {
   uint16_t my_addr = bt_mesh_primary_addr();
+  i_am_gateway = true;
   return mesh_send_gateway_addr(my_addr);
 }
 
 int mesh_send_gateway_addr(uint16_t addr)
 {
   LOG_INF("Publishing gateway-addr: 0x%04x", addr);
+  uint16_t my_addr = bt_mesh_primary_addr();
   const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
       comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
 
@@ -177,6 +180,8 @@ int mesh_send_gateway_addr(uint16_t addr)
 
   // Set new address as gateway
   mod->pub->addr = addr;
+  i_am_gateway = (my_addr == addr);
+  LOG_INF("I am gateway: %s", i_am_gateway ? "YES" : "no");
 
   k_mutex_unlock(&mesh_pub_mutex);
 
@@ -399,11 +404,11 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
   LOG_INF("RX Chunk: TS=%u, Off=%u (idx), Size=%u", header.timestamp,
           header.offset, header.size);
 
-  // Forward to BLE if connected and this is the last chunk
-  if (current_conn && header.offset == CHUNKS_PER_FRAME - 1)
+  // Forward to BLE if frame complete
+  if (byte_offset + data_len >= (BLE_PCKT_SEND_SIZE - 4))
   {
-    ble_data_t tx_item;
-    tx_item.len = BLE_PCKT_SEND_SIZE;
+    frame_chunk tx_item;
+    tx_item.header.size = (byte_offset + data_len);
     memcpy(tx_item.data, reassembly_buffer, BLE_PCKT_SEND_SIZE);
 
     // Use K_NO_WAIT to avoid blocking Mesh thread

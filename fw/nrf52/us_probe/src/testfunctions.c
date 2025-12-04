@@ -17,8 +17,8 @@ void set_mesh_job_state(bool active)
 void send_random_data(uint8_t tx_rx_id, uint16_t meas_frame_nr,
                       struct k_msgq *ble_tx_msgq)
 {
-    ble_data_t tx_item = {0};
-    tx_item.len = BLE_PCKT_SEND_SIZE;
+    frame_chunk tx_item = {0};
+    tx_item.header.size = BLE_PCKT_SEND_SIZE;
 
     /* first chunk [0xFF, tx_rx_id, acq_nr_L, acq_nr_H, data...] */
     tx_item.data[0] = 0xFF;
@@ -107,7 +107,7 @@ void mesh_rand_sender_thread(void)
     int64_t loop_start_ms = k_uptime_get();
     float const MESH_FREQUENCY = 0.05;
     int const LOG_INTERVAL_CNT = 10;
-
+    uint16_t frame_nr = 0;
     while (1)
     {
         if (atomic_get(&mesh_job_active))
@@ -117,25 +117,35 @@ void mesh_rand_sender_thread(void)
             // Create a random frame chunk
             frame_chunk tx_chunk;
             tx_chunk.header.timestamp = k_ticks_to_us_floor32(k_uptime_ticks());
-            tx_chunk.header.offset = 0; // Just a dummy offset
-            tx_chunk.header.size = 0;   // Unused by mesh_tx_thread, and avoids overflow
+            tx_chunk.header.size = BLE_PCKT_SEND_SIZE;
 
             // Fill data
             for (int i = 0; i < BLE_PCKT_SEND_SIZE; i++)
             {
                 tx_chunk.data[i] = (uint8_t)(i & 0xFF);
             }
+            tx_chunk.data[0] = 0xFF;
+            tx_chunk.data[1] = 0;
+            tx_chunk.data[2] = (uint8_t)(frame_nr & 0xFF);
+            tx_chunk.data[3] = (uint8_t)(frame_nr >> 8);
 
-            // Send to queue
-            int qerr = k_msgq_put(&mesh_tx_msgq, &tx_chunk, K_NO_WAIT);
-            if (qerr != 0)
+            // if gateway, publish to BLE, otherwise to mesh
+            if (i_am_gateway)
             {
-                LOG_WRN("Mesh TX queue full; dropping frame (err %d)", qerr);
+                if (k_msgq_put(&ble_tx_msgq, &tx_chunk, K_NO_WAIT) != 0)
+                {
+                    LOG_WRN("BLE TX queue full; dropping frame");
+                }
             }
             else
             {
-                send_count++;
+                if (k_msgq_put(&mesh_tx_msgq, &tx_chunk, K_NO_WAIT) != 0)
+                {
+                    LOG_WRN("Mesh TX queue full; dropping forwarded frame");
+                }
             }
+            send_count++;
+            frame_nr++;
 
             if ((send_count % LOG_INTERVAL_CNT) == 0)
             {
@@ -156,6 +166,7 @@ void mesh_rand_sender_thread(void)
         else
         {
             k_sleep(K_MSEC(100));
+            frame_nr = 0;
         }
     }
 }
