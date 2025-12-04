@@ -19,7 +19,12 @@ void apply_config(uint8_t *const data, uint16_t len)
   LOG_INF("Applying new configuration. Len: %d", len);
 
   // Simulate job start/stop based on config length
-  if (len > 0 && data[0] != 0x00)
+  if (len == 0)
+  {
+    LOG_WRN("Empty configuration received; ignoring.");
+    return;
+  }
+  if (data[0] == 0xfa)
   {
     LOG_INF("Starting mesh job as per configuration.");
     set_mesh_job_state(true);
