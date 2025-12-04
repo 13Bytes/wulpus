@@ -154,6 +154,14 @@ int main(void)
     gpio_add_callback_dt(&dbg_button_3, &dbg_button_3_cb);
     gpio_pin_interrupt_configure_dt(&dbg_button_3, GPIO_INT_EDGE_TO_ACTIVE);
 
+    LOG_INF("Initializing settings subsystem");
+    err = settings_subsys_init();
+    if (err)
+    {
+        LOG_ERR("Failed to initialize settings subsystem: %d\n", err);
+        return err;
+    }
+
     LOG_INF("Setting up Bluetooth LE");
     err = bt_nus_init(&nus_callbacks);
     if (err)
@@ -231,10 +239,13 @@ int main(void)
     }
     LOG_INF("Using address: 0x%04x (derived from bytes 14-15: %02X%02X)", addr,
             dev_uuid[14], dev_uuid[15]);
+
     err = bt_mesh_provision(net_key, net_idx, flags, iv_index, addr, dev_key);
     if (err == -EALREADY)
     {
-        LOG_WRN("Using stored settings");
+        LOG_WRN("Using stored settings - configuration already exists");
+        // Request gateway address since prov_complete won't be called
+        mesh_request_gateway_addr();
     }
     else if (err)
     {
@@ -243,62 +254,8 @@ int main(void)
     }
     else
     {
-        LOG_INF("Provisioning completed");
+        LOG_INF("Provisioning completed - configuration will be done in prov_complete callback");
     }
-    uint8_t bind_status;
-    /* Add Application Key */
-    err = bt_mesh_cfg_cli_app_key_add(net_idx, addr, net_idx, app_idx, app_key,
-                                      &bind_status);
-    LOG_INF("AppKey bind status: %d", bind_status);
-    if (err)
-    {
-        LOG_ERR("Failed to add AppKey (err %d)", err);
-    }
-    else
-    {
-        LOG_INF("AppKey added");
-    }
-
-    /* Bind to vendor model */
-    err = bt_mesh_cfg_cli_mod_app_bind_vnd(net_idx, addr, addr, app_idx,
-                                           BT_MESH_VND_MODEL_ID_WULPUS,
-                                           BT_MESH_VND_ID, &bind_status);
-    LOG_INF("App bind status: %d", bind_status);
-    if (err)
-    {
-        LOG_ERR("Failed to bind Vendor Model (err %d)", err);
-    }
-    else
-    {
-        LOG_INF("Vendor Model bound");
-    }
-
-    /* Subscribe to Wulpus Group Address */
-    err = bt_mesh_cfg_cli_mod_sub_add_vnd(net_idx, addr, addr, WULPUS_GROUP_ADDR,
-                                          BT_MESH_VND_MODEL_ID_WULPUS,
-                                          BT_MESH_VND_ID, &bind_status);
-    if (err)
-    {
-        LOG_ERR("Failed to subscribe to Group Address (err %d)", err);
-    }
-    else
-    {
-        LOG_INF("Subscribed to Group Address 0x%04x", WULPUS_GROUP_ADDR);
-    }
-
-    /* Bind to Health model */
-    err = bt_mesh_cfg_cli_mod_app_bind(net_idx, addr, addr, app_idx,
-                                       BT_MESH_MODEL_ID_HEALTH_SRV, &bind_status);
-    LOG_INF("App SIG bind status: %d", bind_status);
-    if (err)
-    {
-        LOG_ERR("Failed to bind Health Model (err %d)", err);
-    }
-    else
-    {
-        LOG_INF("Health Model bound");
-    }
-    LOG_INF("Mesh configuration done");
 
     /* This will be a no-op if settings_load() loaded provisioning info */
     bt_mesh_prov_enable(

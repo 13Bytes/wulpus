@@ -8,12 +8,10 @@
 
 LOG_MODULE_REGISTER(helper);
 
-/**
- * Returns true if the specified address is an address of the local element.
- */
-bool address_is_local(const struct bt_mesh_elem *elem, uint16_t addr)
+bool own_message(const struct bt_mesh_model *model, const struct bt_mesh_msg_ctx *ctx)
 {
-  return elem->rt->addr == addr;
+  const struct bt_mesh_elem *elem = bt_mesh_model_elem(model);
+  return elem->rt->addr == ctx->addr;
 }
 
 void apply_config(uint8_t *const data, uint16_t len)

@@ -38,6 +38,65 @@ static void prov_complete(uint16_t net_idx, uint16_t addr)
 {
   LOG_INF("Provisioning completed with net_idx: 0x%04x, addr: 0x%04x", net_idx,
           addr);
+
+  // Give the mesh stack time to fully initialize
+  k_sleep(K_MSEC(100));
+
+  int err;
+  uint8_t bind_status;
+  const uint16_t app_idx = 0x0000;
+
+  // Add Application Key
+  extern const uint8_t app_key[16];
+  err = bt_mesh_cfg_cli_app_key_add(net_idx, addr, net_idx, app_idx, app_key,
+                                    &bind_status);
+  if (err)
+  {
+    LOG_ERR("Failed to add AppKey (err %d)", err);
+  }
+  else
+  {
+    LOG_INF("AppKey added successfully");
+  }
+
+  // Bind to vendor model
+  err = bt_mesh_cfg_cli_mod_app_bind_vnd(net_idx, addr, addr, app_idx,
+                                         BT_MESH_VND_MODEL_ID_WULPUS,
+                                         BT_MESH_VND_ID, &bind_status);
+  if (err)
+  {
+    LOG_ERR("Failed to bind Vendor Model (err %d)", err);
+  }
+  else
+  {
+    LOG_INF("Vendor Model bound successfully");
+  }
+
+  // Subscribe to Wulpus Group Address
+  err = bt_mesh_cfg_cli_mod_sub_add_vnd(net_idx, addr, addr, WULPUS_GROUP_ADDR,
+                                        BT_MESH_VND_MODEL_ID_WULPUS,
+                                        BT_MESH_VND_ID, &bind_status);
+  if (err)
+  {
+    LOG_ERR("Failed to subscribe to Group Address (err %d)", err);
+  }
+  else
+  {
+    LOG_INF("Subscribed to Group Address 0x%04x", WULPUS_GROUP_ADDR);
+  }
+
+  // Bind to Health model
+  err = bt_mesh_cfg_cli_mod_app_bind(net_idx, addr, addr, app_idx,
+                                     BT_MESH_MODEL_ID_HEALTH_SRV, &bind_status);
+  if (err)
+  {
+    LOG_ERR("Failed to bind Health Model (err %d)", err);
+  }
+  else
+  {
+    LOG_INF("Health Model bound successfully");
+  }
+
   mesh_request_gateway_addr();
 }
 
@@ -91,6 +150,7 @@ int mesh_publish_self_gateway()
   uint16_t my_addr = bt_mesh_primary_addr();
   return mesh_send_gateway_addr(my_addr);
 }
+
 int mesh_send_gateway_addr(uint16_t addr)
 {
   LOG_INF("Publishing gateway-addr: 0x%04x", addr);
@@ -172,20 +232,24 @@ static int mesh_receiving_gateway_update(const struct bt_mesh_model *model,
                                          struct bt_mesh_msg_ctx *ctx,
                                          struct net_buf_simple *buf)
 {
-  LOG_INF("RX Gateway Update check: src=0x%04x", ctx->addr);
+  if (own_message(model, ctx))
+  {
+    return 0;
+  }
+
+  LOG_INF("Received Gateway Update (from node 0x%04x)", ctx->addr);
   if (buf->len < 2)
   {
     return -EINVAL;
   }
   uint16_t new_addr = net_buf_simple_pull_le16(buf);
-  LOG_INF("Gateway address updated to 0x%04x (from 0x%04x)", new_addr,
-          ctx->addr);
 
   struct bt_mesh_model *mod = (struct bt_mesh_model *)model;
   if (mod->pub)
   {
     mod->pub->addr = new_addr;
-    LOG_INF("Model publication address set to 0x%04x", mod->pub->addr);
+    LOG_INF("Gateway address updated to 0x%04x (from 0x%04x)", new_addr,
+            ctx->addr);
   }
   else
   {
@@ -198,13 +262,18 @@ static int mesh_receiving_gateway_req(const struct bt_mesh_model *model,
                                       struct bt_mesh_msg_ctx *ctx,
                                       struct net_buf_simple *buf)
 {
+  if (own_message(model, ctx))
+  {
+    return 0;
+  }
   LOG_INF("Received Gateway Request from 0x%04x", ctx->addr);
 
-  if (model->pub->addr != BT_MESH_ADDR_UNASSIGNED &&
-      model->pub->addr != BT_MESH_ADDR_ALL_NODES &&
-      model->pub->addr != WULPUS_GROUP_ADDR)
+  uint16_t stored_addr = model->pub->addr;
+  if (stored_addr != BT_MESH_ADDR_UNASSIGNED &&
+      stored_addr != BT_MESH_ADDR_ALL_NODES &&
+      stored_addr != WULPUS_GROUP_ADDR)
   {
-    mesh_send_gateway_addr(model->pub->addr);
+    mesh_send_gateway_addr(stored_addr);
   }
 
   return 0;
@@ -214,11 +283,8 @@ static int mesh_receiving_start_config(const struct bt_mesh_model *model,
                                        struct bt_mesh_msg_ctx *ctx,
                                        struct net_buf_simple *buf)
 {
-  LOG_INF("RX Start Config check: src=0x%04x, dest=0x%04x", ctx->addr,
-          bt_mesh_model_elem(model)->rt->addr);
-  if (address_is_local(bt_mesh_model_elem(model), ctx->addr))
+  if (own_message(model, ctx))
   {
-    LOG_WRN("Ignored local message from 0x%04x", ctx->addr);
     return 0;
   }
   LOG_INF("<-- RX Start Config <0x%04x>", ctx->addr);
@@ -294,6 +360,11 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
                                      struct bt_mesh_msg_ctx *ctx,
                                      struct net_buf_simple *buf)
 {
+  if (own_message(model, ctx))
+  {
+    return 0;
+  }
+
   LOG_INF("<-- RX message <0x%04x>", ctx->addr);
 
   if (buf->len < sizeof(frame_chunk_header))
