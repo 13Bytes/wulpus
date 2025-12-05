@@ -263,12 +263,12 @@ void ble_tx_thread(void)
       if (last_success_ts_ms != 0)
       {
         int64_t delta_ms = now_ms - last_success_ts_ms;
-        LOG_INF("BLE: full frame sent. dt since last success: %lld ms",
+        LOG_INF("BLE TX: full frame sent. dt since last success: %lld ms",
                 (long long)delta_ms);
       }
       else
       {
-        LOG_INF("BLE: full frame sent. First successful frame");
+        LOG_INF("BLE TX: full frame sent. First successful frame");
       }
       last_success_ts_ms = now_ms;
 
@@ -276,19 +276,14 @@ void ble_tx_thread(void)
       if (slow_counter % 20 == 0)
       {
         int64_t time_since_last_slow_ms = now_ms - slow_last_send_time_ms;
+        uint32_t fps = 0;
         if (time_since_last_slow_ms <= 0)
         {
-          LOG_WRN("BLE: Sent 20 full frames. Average rate unavailable "
-                  "(dt=%lld ms)",
-                  (long long)time_since_last_slow_ms);
-        }
-        else
-        {
-          uint32_t fps =
+          fps =
               (uint32_t)(((uint64_t)20 * 1000U + time_since_last_slow_ms / 2) /
                          (uint64_t)time_since_last_slow_ms);
-          LOG_WRN("BLE: Sent 20 full frames. Average rate: %u fps", fps);
         }
+        LOG_WRN("BLE sent 20 full frames. Average rate: %u fps (dt=%lld ms)", fps, (long long)time_since_last_slow_ms);
         slow_last_send_time_ms = now_ms;
       }
     }

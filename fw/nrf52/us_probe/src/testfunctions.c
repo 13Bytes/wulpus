@@ -105,7 +105,7 @@ void mesh_rand_sender_thread(void)
     static uint64_t current_ms = 0;
 
     int64_t loop_start_ms = k_uptime_get();
-    float const MESH_FREQUENCY = 0.05;
+    float const MESH_FREQUENCY = 10;
     int const LOG_INTERVAL_CNT = 10;
     uint16_t frame_nr = 0;
     while (1)
@@ -120,15 +120,18 @@ void mesh_rand_sender_thread(void)
             tx_chunk.header.size = BLE_PCKT_SEND_SIZE;
 
             // Fill data
-            for (int i = 0; i < BLE_PCKT_SEND_SIZE; i++)
+            for (int i = 0; i < BLE_PCKT_SEND_SIZE; i += 2)
             {
-                tx_chunk.data[i] = (uint8_t)(i & 0xFF);
+                uint16_t sample = frame_nr % 2000;
+                tx_chunk.data[i] = (uint8_t)(sample & 0xFF);
+                tx_chunk.data[i + 1] = (uint8_t)((sample >> 8));
             }
             tx_chunk.data[0] = 0xFF;
             tx_chunk.data[1] = 0;
             tx_chunk.data[2] = (uint8_t)(frame_nr & 0xFF);
             tx_chunk.data[3] = (uint8_t)(frame_nr >> 8);
 
+            LOG_INF("mesh_rand_sender: generating frame nr %d", frame_nr);
             // if gateway, publish to BLE, otherwise to mesh
             if (i_am_gateway)
             {
