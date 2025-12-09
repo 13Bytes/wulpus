@@ -221,15 +221,28 @@ void ble_tx_thread(void)
     // Send the frame in 201 byte chunks (202 bytes for the first to signalize
     // start, the last byte is irrelevant)
     bool full_frame_sent = true;
+    uint8_t buf[BLE_HEADER_SZE + BLE_MAX_PAYLOAD_SIZE];
+
+    ble_msg_header *header = (ble_msg_header *)buf;
+    header->timestamp = tx_data.header.timestamp;
+    header->length = tx_data.header.size + BLE_HEADER_SZE;
+    header->addr = tx_data.header.addr;
+
+    memcpy(buf + BLE_HEADER_SZE, tx_data.data, tx_data.header.size);
+
     for (unsigned i = 0; i < CHUNKS_PER_FRAME; i++)
     {
-      uint16_t message_len = (i > 0) ? BYTES_PR_XFER_RX : BYTES_PR_XFER_RX + 1;
       int err;
-      unsigned retries = 10;
+      unsigned retries = 5;
       do
       {
-        err = bt_nus_send(current_conn, &tx_data.data[i * BYTES_PR_XFER_RX],
-                          message_len);
+        size_t const message_len = MIN((BLE_HEADER_SZE + tx_data.header.size) - (i * BYTES_PR_XFER_TX), BYTES_PR_XFER_TX);
+        if (message_len > bt_nus_get_mtu(current_conn))
+        {
+          LOG_WRN("max BLE message len %d overexceeded! (attempt to send: %d)", bt_nus_get_mtu(current_conn), message_len);
+        }
+
+        err = bt_nus_send(current_conn, &buf[i * BYTES_PR_XFER_TX], message_len);
         if (err == -ENOBUFS || err == -EAGAIN)
         {
           /* Controller/host back-pressure: wait a bit and retry */
@@ -238,7 +251,7 @@ void ble_tx_thread(void)
           k_yield();
           continue;
         }
-        if (err)
+        else if (err)
         {
           LOG_WRN("BLE send failed (chunk %u) with err: %d - retrying (%u "
                   "left)....",
@@ -246,9 +259,13 @@ void ble_tx_thread(void)
           k_sleep(K_USEC(50));
           continue;
         }
-        // Success - break out of retry loop
-        break;
+        else
+        {
+          // success
+          break;
+        }
       } while (--retries > 0);
+
       if (err)
       {
         LOG_WRN("BLE: All retries failed to send chunk %u (err %d)", i, err);

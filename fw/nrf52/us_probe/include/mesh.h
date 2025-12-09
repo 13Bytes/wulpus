@@ -48,6 +48,7 @@ struct frame_header
 {
   uint32_t timestamp; // Sequence ID (Microseconds)
   uint16_t size;      // Count of bytes
+  uint16_t addr;      // sender address
 } __packed;
 typedef struct frame_header frame_header;
 

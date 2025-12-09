@@ -6,6 +6,16 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 
+// --- Types ---
+struct __packed ble_msg_header
+{
+    uint32_t timestamp; // Sequence ID (Microseconds)
+    uint16_t length;    // Chunk Index
+    uint16_t addr;      // Sensor address (mesh node address)
+};
+typedef struct ble_msg_header ble_msg_header;
+#define BLE_HEADER_SZE sizeof(ble_msg_header)
+#define BLE_MAX_PAYLOAD_SIZE 800
 
 // --- Definitions ---
 #define BLE_SINGLE_PCKT_SIZE 200

@@ -360,13 +360,14 @@ int mesh_publish_config(const uint8_t *config_data, size_t len)
 }
 
 // Handle received data in Mesh
-// Assemble chunks and send them out over BLE
+// Assemble chunks and lster send them out over BLE
 static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
                                      struct bt_mesh_msg_ctx *ctx,
                                      struct net_buf_simple *buf)
 {
   if (own_message(model, ctx))
   {
+    // own message will directly be sent over to BLE; detour not necessary
     return 0;
   }
 
@@ -409,6 +410,9 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
   {
     frame_chunk tx_item;
     tx_item.header.size = (byte_offset + data_len);
+    tx_item.header.timestamp = header.timestamp;
+    tx_item.header.addr = ctx->addr;
+
     memcpy(tx_item.data, reassembly_buffer, BLE_PCKT_SEND_SIZE);
 
     // Use K_NO_WAIT to avoid blocking Mesh thread

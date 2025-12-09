@@ -6,6 +6,7 @@
 #include <nrfx_spim.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
+#include <zephyr/bluetooth/mesh.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(spi);
@@ -62,6 +63,7 @@ void us_spi_init(void) {
 
 void spi_session_thread(void) {
   LOG_INF("SPI session thread spawned");
+  uint16_t my_addr = bt_mesh_primary_addr();
 
   while (1) {
     // Wait for GPIO interrupt to trigger a session
@@ -128,6 +130,7 @@ void spi_session_thread(void) {
       frame_chunk chunk = {0};
       chunk.header.timestamp = k_uptime_get_32();
       chunk.header.size = BLE_PCKT_SEND_SIZE;
+      chunk.header.addr = my_addr;
       memcpy(&chunk.data, m_rx_buffer, BLE_PCKT_SEND_SIZE);
 
       uint8_t queue_used =

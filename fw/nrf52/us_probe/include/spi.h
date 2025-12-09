@@ -5,8 +5,8 @@
 #include <zephyr/kernel.h>
 
 // --- Definitions ---
-#define BYTES_PR_XFER_RX 201
-#define BYTES_PR_XFER_TX 201
+#define BYTES_PR_XFER_RX 210
+#define BYTES_PR_XFER_TX 210
 #define CHUNKS_PER_FRAME 4
 #define MIN_INTERRUPT_INTERVAL_MS 15
 

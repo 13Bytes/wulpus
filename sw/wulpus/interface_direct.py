@@ -169,6 +169,9 @@ class WulpusDongleDirect(DongleInterface):
             return None, None, None
 
         frame_buffer = bytearray()
+        hdr_timestamp = 0
+        hdr_body_length = 0
+        hdr_addr = 0
 
         while wulpus.get_acquisition_running():
             try:
@@ -178,27 +181,28 @@ class WulpusDongleDirect(DongleInterface):
                 continue
 
             # Start of a new frame
-            if len(data) == 202 and data[0] == 0xFF:
+            if len(data) > 100 and data[8] == 0xFF:
                 if len(frame_buffer) > 0:
                     print(
                         f"Warning: Incomplete frame discarded ({len(frame_buffer)} bytes)")
-                # The first packet is 202 bytes, but we discard the last byte which is likely garbage due to a firmware bug.
-                frame_buffer = bytearray(data[:201])
+                hdr_timestamp = int.from_bytes(data[0:4], 'little')
+                hdr_body_length = int.from_bytes(data[4:6], 'little')
+                hdr_addr = int.from_bytes(data[6:8], 'little')
+                frame_buffer = bytearray(data)
                 continue
 
             # Subsequent packets of the current frame
-            if frame_buffer and len(data) == 201:
+            if frame_buffer:
                 frame_buffer.extend(data)
 
             # A full frame has been received
-            if len(frame_buffer) == 804:
+            if hdr_body_length != 0 and len(frame_buffer) == hdr_body_length:
                 # Frame structure: [0xFF, tx_rx_id, acq_nr_L, acq_nr_H, data...]
-                tx_rx_id = frame_buffer[1]
-                acq_nr = int.from_bytes(frame_buffer[2:4], 'little')
-                # The actual RF data starts after the 4-byte header
-                rf_arr = np.frombuffer(frame_buffer[4:], dtype='<i2')
+                tx_rx_id = frame_buffer[9]
+                acq_nr = int.from_bytes(frame_buffer[10:12], 'little')
+                # The actual RF data
+                rf_arr = np.frombuffer(frame_buffer[12:], dtype='<i2')
 
-                # Verify data length
                 if len(rf_arr) == acq_length:
                     now = time.perf_counter()
                     if self._last_frame_time is not None:
@@ -207,18 +211,21 @@ class WulpusDongleDirect(DongleInterface):
                     else:
                         dt_str = "n/a"
                     self._last_frame_time = now
-                    if acq_nr % 100 == 0:
+                    if acq_nr % 1 == 0:
                         print(
                             f"state of frames: acq_nr={acq_nr}, tx_rx_id={tx_rx_id}, dt={dt_str} (to prev. one)")
+                        print(
+                            f"Frame header: addr {hdr_addr}, timestamp {hdr_timestamp}")
                     return rf_arr, acq_nr, tx_rx_id
                 else:
                     print(
                         f"Warning: Malformed frame received (data length {len(rf_arr)}, expected {acq_length}). Discarding.")
                     # Reset buffer if data is malformed
                     frame_buffer = bytearray()
-            elif len(frame_buffer) > 804:
+
+            elif hdr_body_length != 0 and len(frame_buffer) > hdr_body_length:
                 print(
-                    f"Warning: Oversized frame discarded ({len(frame_buffer)} bytes)")
+                    f"Warning: Oversized frame discarded ({len(frame_buffer)} bytes received, expected {hdr_body_length}).")
                 frame_buffer = bytearray()
 
         return None, None, None

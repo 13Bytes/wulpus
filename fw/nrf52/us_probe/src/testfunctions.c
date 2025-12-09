@@ -3,6 +3,7 @@
 #include "main.h"
 #include "mesh.h"
 #include <zephyr/logging/log.h>
+#include <zephyr/bluetooth/mesh.h>
 
 LOG_MODULE_DECLARE(main);
 
@@ -46,7 +47,7 @@ void rand_sender_thread(void)
     static uint64_t current_ms = 0;
 
     int64_t loop_start_ms = k_uptime_get();      /* start time for the loop (ms) */
-    int const FREQUENCY = 10;                    /* Hz */
+    float const FREQUENCY = 0.5;                   /* Hz */
     int const LOG_INTERVAL_CNT = FREQUENCY * 10; /* log every N messages */
 
     while (1)
@@ -108,6 +109,7 @@ void mesh_rand_sender_thread(void)
     float const MESH_FREQUENCY = 10;
     int const LOG_INTERVAL_CNT = 10;
     uint16_t frame_nr = 0;
+    uint16_t my_addr = bt_mesh_primary_addr();
     while (1)
     {
         if (atomic_get(&mesh_job_active))
@@ -118,6 +120,7 @@ void mesh_rand_sender_thread(void)
             frame_chunk tx_chunk;
             tx_chunk.header.timestamp = k_ticks_to_us_floor32(k_uptime_ticks());
             tx_chunk.header.size = BLE_PCKT_SEND_SIZE;
+            tx_chunk.header.addr = my_addr;
 
             // Fill data
             for (int i = 0; i < BLE_PCKT_SEND_SIZE; i += 2)
