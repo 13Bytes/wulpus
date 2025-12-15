@@ -106,10 +106,9 @@ void mesh_rand_sender_thread(void)
     static uint64_t current_ms = 0;
 
     int64_t loop_start_ms = k_uptime_get();
-    float const MESH_FREQUENCY = 10;
+    float const MESH_FREQUENCY = 0.5;
     int const LOG_INTERVAL_CNT = 10;
     uint16_t frame_nr = 0;
-    uint16_t my_addr = bt_mesh_primary_addr();
     while (1)
     {
         if (atomic_get(&mesh_job_active))
@@ -118,9 +117,9 @@ void mesh_rand_sender_thread(void)
 
             // Create a random frame chunk
             frame_chunk tx_chunk;
-            tx_chunk.header.timestamp = k_ticks_to_us_floor32(k_uptime_ticks());
+            tx_chunk.header.timestamp = mesh_get_network_timestamp();
             tx_chunk.header.size = BLE_PCKT_SEND_SIZE;
-            tx_chunk.header.addr = my_addr;
+            tx_chunk.header.addr = bt_mesh_primary_addr();
 
             // Fill data
             for (int i = 0; i < BLE_PCKT_SEND_SIZE; i += 2)

@@ -10,7 +10,12 @@ import serial
 from serial.tools.list_ports import comports
 from serial.tools.list_ports_common import ListPortInfo
 from typing import TYPE_CHECKING
-from .interface import DongleInterface, ConnectionType, ConnectionOption
+from .interface import (
+    ConnectionOption,
+    ConnectionType,
+    DongleInterface,
+    ReceiveDataPayload,
+)
 
 if TYPE_CHECKING:
     from wulpus.wulpus import Wulpus
@@ -82,19 +87,27 @@ class WulpusDongleUsb(DongleInterface):
         self.__ser__.write(conf_bytes_pack)
         return True
 
-    def _get_rf_data_and_info__(self, bytes_arr: bytes):
+    def _get_rf_data_and_info__(self, bytes_arr: bytes) -> ReceiveDataPayload:
         rf_arr = np.frombuffer(bytes_arr[7:], dtype='<i2')
         tx_rx_id = bytes_arr[4]
         acq_nr = np.frombuffer(bytes_arr[5:7], dtype='<u2')[0]
-        return rf_arr, acq_nr, tx_rx_id
+        return {
+            "rf_data": rf_arr,
+            "acq_number": int(acq_nr),
+            "tx_rx_id": int(tx_rx_id),
+        }
 
-    async def receive_data(self, wulpus: Wulpus, acq_length: int = 400):
+    async def receive_data(
+        self,
+        wulpus: Wulpus,
+        acq_length: int = 400,
+    ) -> Optional[ReceiveDataPayload]:
         self.acq_length = acq_length
         if not self.__ser__.is_open:
             print("Error: serial port is not open.")
             return None
 
-        def _read_packet(wulpus: Wulpus):
+        def _read_packet(wulpus: Wulpus) -> Optional[ReceiveDataPayload]:
             while wulpus.get_acquisition_running():
                 response_start = self.__ser__.readline()
                 if len(response_start) != 0 and response_start[-6:] == b'START\n':

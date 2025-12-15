@@ -19,6 +19,8 @@ import serial
 from serial.tools.list_ports import comports
 from serial.tools.list_ports_common import ListPortInfo
 import numpy as np
+from typing import Optional
+from wulpus.interface import ReceiveDataPayload
 
 ACQ_LENGTH_SAMPLES = 400
 
@@ -127,17 +129,19 @@ class WulpusDongle():
 
         return True
     
+    def __get_rf_data_and_info__(self, bytes_arr: bytes) -> ReceiveDataPayload:
 
-    def __get_rf_data_and_info__(self, bytes_arr:bytes):
-    
         rf_arr = np.frombuffer(bytes_arr[7:], dtype='<i2')    
         tx_rx_id = bytes_arr[4]
         acq_nr = np.frombuffer(bytes_arr[5:7], dtype='<u2')[0]
 
-        return rf_arr, acq_nr, tx_rx_id
+        return {
+            "rf_data": rf_arr,
+            "acq_number": int(acq_nr),
+            "tx_rx_id": int(tx_rx_id),
+        }
     
-    
-    def receive_data(self):
+    def receive_data(self) -> Optional[ReceiveDataPayload]:
         """
         Receive a data package from the device.
         """

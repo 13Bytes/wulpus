@@ -1,0 +1,55 @@
+/*
+ * Copyright (c) 2020-2023 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+#ifndef BT_MESH_TIME_UTIL
+#define BT_MESH_TIME_UTIL
+
+#include <zephyr/types.h>
+#include <zephyr/sys_clock.h>
+#include <bluetooth/mesh/time.h>
+#include <time.h>
+#include <bluetooth/mesh/time_srv.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+#define TAI_START_YEAR 2000
+#define TM_START_YEAR 1900
+#define TAI_START_DAY 6
+
+#define DAYS_YEAR 365ULL
+#define DAYS_LEAP_YEAR 366ULL
+
+#define SEC_PER_YEAR (DAYS_YEAR * SEC_PER_DAY)
+#define SEC_PER_LEAP_YEAR (DAYS_LEAP_YEAR * SEC_PER_DAY)
+#define FEB_DAYS 28
+#define FEB_LEAP_DAYS 29
+#define WEEKDAY_CNT 7
+
+#define SUBSEC_STEPS 256U
+#define STATUS_INTERVAL_MIN 30000ll
+
+    void tai_to_tm(const struct bt_mesh_time_tai *tai, struct tm *timeptr);
+    int tm_to_tai(struct bt_mesh_time_tai *tai, const struct tm *timeptr);
+    void network_time_into_tai(struct bt_mesh_time_srv *srv, int64_t uptime, struct bt_mesh_time_tai *tai);
+
+    static inline bool is_leap_year(uint32_t year)
+    {
+        return ((year % 4) == 0) &&
+               (((year % 100) != 0) || ((year % 400) == 0));
+    }
+
+    static inline bool tai_is_unknown(const struct bt_mesh_time_tai *tai)
+    {
+        return !tai->sec && !tai->subsec;
+    }
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* BT_MESH_TIME_UTIL */

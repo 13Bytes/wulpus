@@ -89,7 +89,9 @@ class MeasurementProcessor:
             measurement=measurement,
             peaks=peaks_consistent,
             wavelet=wavelet_env,
-            spacer_region=spacer_region)
+            spacer_region=spacer_region,
+            mesh_origin=measurement.get("mesh_origin")
+        )
 
     def reset(self):
         self._history.clear()

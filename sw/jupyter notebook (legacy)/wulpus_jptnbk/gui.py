@@ -460,22 +460,26 @@ class WulpusGuiSingleCh(widgets.VBox):
             # Receive the data
             data = self.com_link.receive_data()
             if data is not None:
-                # data: rf_arr, acq_nr, tx_rx_id
+                # data: ReceiveDataPayload contents
                 self.current_data = data
 
-                if data[2] == self.rx_tx_conf_to_display and not self.bmode_check.value:
-                    self.current_amode_data = data[0]
+                rf_data = data["rf_data"]
+                acq_number = data["acq_number"]
+                tx_rx_id = data["tx_rx_id"]
+
+                if tx_rx_id == self.rx_tx_conf_to_display and not self.bmode_check.value:
+                    self.current_amode_data = rf_data
 
                 # Save data
-                self.data_arr[:, self.data_cnt] = data[0]
+                self.data_arr[:, self.data_cnt] = rf_data
 
                 # and other params
-                self.acq_num_arr[self.data_cnt] = data[1]
-                self.tx_rx_id_arr[self.data_cnt] = data[2]
+                self.acq_num_arr[self.data_cnt] = acq_number
+                self.tx_rx_id_arr[self.data_cnt] = tx_rx_id
 
                 # Save data to specific z
-                self.data_arr_bmode[self.tx_rx_id_arr[self.data_cnt]] = self.get_envelope(
-                    self.filter_data(data[0]))
+                self.data_arr_bmode[tx_rx_id] = self.get_envelope(
+                    self.filter_data(rf_data))
 
                 self.data_cnt = self.data_cnt + 1
 

@@ -127,7 +127,9 @@ class WebsocketManager:
             if data is not None:
                 processed = self._processor.process_measurement(
                     data, w.get_config())
-                processed = {**dict(processed), "wulpus_id": w.wulpus_id}
+                mesh_origin = data.get("mesh_origin", 0)
+                processed = {
+                    **dict(processed), "wulpus_id": w.wulpus_id, "mesh_origin": mesh_origin}
                 await self.broadcast_json(processed)
 
     def find_free_id(self) -> int:

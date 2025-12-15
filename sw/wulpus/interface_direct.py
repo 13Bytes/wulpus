@@ -10,7 +10,12 @@ from bleak import BleakClient, BleakScanner, BLEDevice
 from bleak.exc import BleakError
 from serial.tools.list_ports_common import ListPortInfo
 from typing import TYPE_CHECKING
-from .interface import DongleInterface, ConnectionType, ConnectionOption
+from .interface import (
+    ConnectionOption,
+    ConnectionType,
+    DongleInterface,
+    ReceiveDataPayload,
+)
 if TYPE_CHECKING:
     from wulpus.wulpus import Wulpus
 
@@ -144,7 +149,11 @@ class WulpusDongleDirect(DongleInterface):
             print("Error while trying to send config to BLE device:", e)
             return False
 
-    async def receive_data(self, wulpus: Wulpus, acq_length: int = 400):
+    async def receive_data(
+        self,
+        wulpus: Wulpus,
+        acq_length: int = 400,
+    ) -> Optional[ReceiveDataPayload]:
         """
         Receives and processes data from the Wulpus device.
 
@@ -162,11 +171,11 @@ class WulpusDongleDirect(DongleInterface):
         """
         if not self._bleak_client or not self._bleak_client.is_connected:
             print("Error: BLE client is not connected.")
-            return None, None, None
+            return None
 
         if self._data_queue is None:
             print("Error: Data queue not initialized.")
-            return None, None, None
+            return None
 
         frame_buffer = bytearray()
         hdr_timestamp = 0
@@ -216,7 +225,13 @@ class WulpusDongleDirect(DongleInterface):
                             f"state of frames: acq_nr={acq_nr}, tx_rx_id={tx_rx_id}, dt={dt_str} (to prev. one)")
                         print(
                             f"Frame header: addr {hdr_addr}, timestamp {hdr_timestamp}")
-                    return rf_arr, acq_nr, tx_rx_id
+                    return {
+                        "rf_data": rf_arr,
+                        "acq_number": int(acq_nr),
+                        "tx_rx_id": int(tx_rx_id),
+                        "sensor_addr": int(hdr_addr),
+                        "timestamp": int(hdr_timestamp),
+                    }
                 else:
                     print(
                         f"Warning: Malformed frame received (data length {len(rf_arr)}, expected {acq_length}). Discarding.")
@@ -228,7 +243,7 @@ class WulpusDongleDirect(DongleInterface):
                     f"Warning: Oversized frame discarded ({len(frame_buffer)} bytes received, expected {hdr_body_length}).")
                 frame_buffer = bytearray()
 
-        return None, None, None
+        return None
 
     def get_status(self):
         if self._bleak_client and self._bleak_client.is_connected:

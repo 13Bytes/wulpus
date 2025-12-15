@@ -16,6 +16,7 @@ class Measurement(TypedDict):
     time: int
     tx: list[int]
     rx: list[int]
+    mesh_origin: int
 
 
 class HTTPMeasurementResponse(BaseModel):
@@ -23,3 +24,4 @@ class HTTPMeasurementResponse(BaseModel):
     peaks: list[float]
     wavelet: list[float]
     spacer_region: list[float] = []  # [start, end] in ticks
+    mesh_origin: int

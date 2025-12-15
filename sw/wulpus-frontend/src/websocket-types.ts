@@ -60,6 +60,7 @@ export type DataFrame = {
         tx: number[]
         rx: number[]
     }
+    mesh_origin: number
     peaks: number[]
     wavelet: number[]
     spacer_region: [number, number]

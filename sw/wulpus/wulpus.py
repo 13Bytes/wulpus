@@ -14,7 +14,7 @@ import pandas as pd
 from typing_extensions import TypedDict
 from wulpus.wulpus_model import Measurement, Status
 from wulpus.helper import ensure_dir
-from wulpus.interface import DongleInterface
+from wulpus.interface import DongleInterface, ReceiveDataPayload
 from wulpus.interface_direct import WulpusDongleDirect
 from wulpus.interface_usb import WulpusDongleUsb
 from wulpus.wulpus_api import (DATA_FILE_EXTENSION, gen_conf_package,
@@ -141,19 +141,28 @@ class Wulpus:
         self._acquisition_running = True
         current_intf = self._get_current_interface()
         while data_cnt < number_of_acq and self._acquisition_running:
-            # need to be a object so it gets passes by ref
-            data = await current_intf.receive_data(self, self._config.us_config.num_samples)
-            timestamp = int(time.time_ns()/1e3)
-            if data is not None and self._acquisition_running:
-                self._latest_frame = self._structure_measurement(
-                    data[0], data[2], timestamp)
-                self._data[:, data_cnt] = data[0]
-                self._data_acq_num[data_cnt] = data[1]
-                self._data_tx_rx_id[data_cnt] = data[2]
-                self._data_time[data_cnt] = timestamp
-                self._new_measurement.set()
-                data_cnt += 1
-                self._live_data_cnt = data_cnt
+            payload = await current_intf.receive_data(
+                self, self._config.us_config.num_samples
+            )
+            if payload is None or not self._acquisition_running:
+                continue
+
+            frame_timestamp = payload.get(
+                "timestamp", int(time.time_ns() / 1e3))
+            rf_data = payload["rf_data"]
+            acq_number = payload["acq_number"]
+            tx_rx_id = payload["tx_rx_id"]
+            self._latest_frame = self._structure_measurement(
+                payload, frame_timestamp
+            )
+            self._data[:, data_cnt] = rf_data
+            self._data_acq_num[data_cnt] = acq_number
+            self._data_tx_rx_id[data_cnt] = tx_rx_id
+            self._data_time[data_cnt] = frame_timestamp
+            # Signal new data; will be cleared by listener in associated `task_broadcast_data()`, which accesses `get_latest_frame()`
+            self._new_measurement.set()
+            data_cnt += 1
+            self._live_data_cnt = data_cnt
 
         # stop measurement
         await current_intf.send_config(gen_restart_package())
@@ -216,13 +225,18 @@ class Wulpus:
     def get_latest_frame(self) -> Union[Measurement, None]:
         return self._latest_frame
 
-    def _structure_measurement(self, _data: np.ndarray, _tx_rx_id: int, _time: int) -> Measurement:
-        tx_rx_config = self._config.tx_rx_config[_tx_rx_id]
+    def _structure_measurement(self, payload: ReceiveDataPayload, timestamp: int) -> Measurement:
+        rf_data = payload["rf_data"]
+        tx_rx_id = payload["tx_rx_id"]
+        mesh_origin = payload.get("sensor_addr", 0)
+
+        tx_rx_config = self._config.tx_rx_config[tx_rx_id]
         return Measurement(
-            data=_data.tolist(),
-            time=int(_time),
+            data=rf_data.tolist(),
+            time=int(timestamp),
             tx=tx_rx_config.tx_channels if tx_rx_config.tx_channels else [],
-            rx=tx_rx_config.rx_channels if tx_rx_config.rx_channels else []
+            rx=tx_rx_config.rx_channels if tx_rx_config.rx_channels else [],
+            mesh_origin=mesh_origin,
         )
 
     def _disconnected_callback(self, *args, **kwargs):

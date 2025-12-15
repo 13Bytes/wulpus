@@ -4,41 +4,57 @@ import Plot from 'react-plotly.js';
 import { bandpassFIR, hilbertEnvelope, toggleFullscreen } from './helper';
 import type { DataFrame, UsConfig } from './websocket-types';
 import RangeSlider from 'react-range-slider-input';
+import { CHANNEL_SIZE } from './App';
 
-export function Graph(props: { dataFrame: DataFrame | undefined, bmodeBuffer: number[][], peaksPerChannel: number[][], usConfig: UsConfig }) {
-    const { dataFrame, bmodeBuffer, peaksPerChannel, usConfig } = props;
+export function Graph(props: { dataFrame: DataFrame | undefined, usConfig: UsConfig, showBMode: boolean, lowCutHz: number, highCutHz: number }) {
+    const { dataFrame, usConfig, showBMode, lowCutHz, highCutHz } = props;
     const data = dataFrame?.measurement.data ?? [];
     const wavelet_transform = dataFrame?.wavelet ?? [];
     const peaks = dataFrame?.peaks ?? [];
     const sampling_freq = usConfig.sampling_freq;
-    const plotContainerRef = useRef<HTMLDivElement | null>(null);
-    const [showBMode, setShowBMode] = useState<boolean>(false);
     const UPSAMPLING_FACTOR = 10
 
-    // fullscreen graph support
-    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [bmodeBuffer, setBmodeBuffer] = useState<number[][]>(Array.from({ length: CHANNEL_SIZE }, () => []));
+    const [peaksPerChannel, setPeaksPerChannel] = useState<number[][]>(Array.from({ length: CHANNEL_SIZE }, () => []));
+    const [lastWulpusId, setLastWulpusId] = useState<number>();
 
-    // track fullscreen changes
     useEffect(() => {
-        const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
-        document.addEventListener('fullscreenchange', onFsChange);
-        return () => document.removeEventListener('fullscreenchange', onFsChange);
-    }, []);
+        if (!dataFrame) {
+            return;
+        }
+        if (dataFrame.wulpus_id != lastWulpusId) {
+            // new wulpus, reset buffers
+            setLastWulpusId(dataFrame.wulpus_id);
+            setBmodeBuffer(Array.from({ length: CHANNEL_SIZE }, () => []));
+            setPeaksPerChannel(Array.from({ length: CHANNEL_SIZE }, () => []));
+        }
+
+        const rx_channel = dataFrame.measurement.rx;
+        if (Array.isArray(dataFrame.peaks)) {
+            setPeaksPerChannel(prev => {
+                const next = [...prev];
+                for (const channel of rx_channel) {
+                    if (channel >= CHANNEL_SIZE) break;
+                    next[channel] = dataFrame.peaks.slice();
+                }
+                return next;
+            });
+        }
+        const new_data = dataFrame.measurement.data.slice();
+        setBmodeBuffer(prev => {
+            const next = [...prev];
+            for (const channel of rx_channel) {
+                if (channel >= CHANNEL_SIZE) break;
+                next[channel] = new_data;
+            }
+            return next;
+        });
+    }, [dataFrame, setLastWulpusId, lastWulpusId])
+
 
     // compute filter/envelope just-in-time before rendering
-    const minLowCutHz = useCallback((sampling_freq: number) => sampling_freq / 2 * 0.1, []);
-    const maxHighCutHz = useCallback((sampling_freq: number) => sampling_freq / 2 * 0.9, []);
-    const [lowCutHz, setLowCutHz] = useState(minLowCutHz(sampling_freq));
-    const [highCutHz, setHighCutHz] = useState(maxHighCutHz(sampling_freq));
     const filteredFrame = data ? bandpassFIR(data, sampling_freq, lowCutHz, highCutHz, 31) : [];
     const envelopeFrame = filteredFrame.length ? hilbertEnvelope(filteredFrame, 101) : [];
-
-    useEffect(() => {
-        setLowCutHz(minLowCutHz(sampling_freq));
-        setHighCutHz(maxHighCutHz(sampling_freq));
-    }, [sampling_freq, setHighCutHz, minLowCutHz, maxHighCutHz]);
-
-    // Rx channels for current frame (if provided)
 
     // Vertical line shapes for the time-domain (non B-mode) plot spanning full height
     const signalPeakShapes: Partial<Plotly.Shape>[] = peaks.map(p => ({
@@ -51,8 +67,6 @@ export function Graph(props: { dataFrame: DataFrame | undefined, bmodeBuffer: nu
         line: { color: 'rgba(100,120,135,0.35)' }, fillcolor: 'rgba(100,120,135,0.35)', layer: 'below'
     }
 
-    // For B-Mode heatmap: draw peak lines only over the rows (channels) that belong to this measurement's rx set.
-    // Heatmap implicit y coordinates: row indices 0..N-1. We'll span each channel row from (ch-0.5) to (ch+0.5)
     const bmodePeakShapes: Partial<Plotly.Shape>[] = [];
     if (peaksPerChannel && peaksPerChannel.length) {
         for (let ch = 0; ch < peaksPerChannel.length; ch++) {
@@ -72,109 +86,61 @@ export function Graph(props: { dataFrame: DataFrame | undefined, bmodeBuffer: nu
         }
     }
 
-    return (
-        <div ref={plotContainerRef} className="bg-white p-4">
-            <div className="h-[400px]">
-                {showBMode ? (
-                    <Plot
-                        data={[{
-                            z: bmodeBuffer.length ? bmodeBuffer : [[]],
-                            type: 'heatmap',
-                            colorscale: 'Viridis',
-                            reversescale: true,
-                        }] as Plotly.Data[]}
-                        useResizeHandler
-                        style={{ width: "100%", height: "100%" }}
-                        layout={{
-                            autosize: true,
-                            margin: { t: 10, r: 10, b: 30, l: 40 },
-                            shapes: [...bmodePeakShapes, spacerShape],
-                            yaxis: { autorange: true, title: { text: 'Channel' } },
-                        }}
-                    />
-                ) : (
-                    <Plot
-                        data={([
-                            {
-                                x: data ? data.map((_, i) => i) : [],
-                                y: data ?? [],
-                                type: 'scatter', mode: 'lines', name: 'Raw', line: { color: 'blue' },
-                            },
-                            {
-                                    x: data ? data.map((_, i) => i) : [],
-                                    y: filteredFrame.length ? filteredFrame : [],
-                                    type: 'scatter', mode: 'lines', name: 'Filter', line: { color: 'green' },
-                                    visible: 'legendonly',
-                                },
-                                {
-                                    x: data ? data.map((_, i) => i) : [],
-                                    y: envelopeFrame.length ? envelopeFrame : [],
-                                    type: 'scatter', mode: 'lines', name: 'Envelope', line: { color: 'fuchsia' },
-                                    visible: 'legendonly',
-                                },
-                                {
-                                    x: wavelet_transform ? wavelet_transform.map((_, i) => i / UPSAMPLING_FACTOR) : [],
-                                    y: wavelet_transform ?? [],
-                                    type: 'scatter', mode: 'lines', name: 'Wavelet Envelope', line: { color: 'red' },
-                                visible: 'legendonly',
-                                }
-                            ]) as Plotly.Data[]}
-                        useResizeHandler
-                        style={{ width: "100%", height: "100%" }}
-                        layout={{
-                            autosize: true,
-                            uirevision: "fixed",
-                            showlegend: true,
-                            legend: { orientation: 'h' },
-                            margin: { t: 10, r: 10, b: 30, l: 40 },
-                            yaxis: { range: [-2000, 2000] },
-                            shapes: [...signalPeakShapes, spacerShape],
-                        }}
-                    />
-                )}
-            </div>
-            <div className="flex gap-2 mt-2 flex-wrap items-center">
-                <button
-                    onClick={() => setShowBMode(o => !o)}
-                    className={`bg-gray-500 hover:bg-gray-600 text-white rounded p-1`}
-                >
-                    {showBMode ? 'Disable' : 'Enable'} B Mode</button>
-                <button
-                    onClick={() => toggleFullscreen(plotContainerRef)}
-                    className={`border-gray-500 border-1 hover:bg-gray-200 rounded p-1 flex items-center justify-center`}
-                >
-                    {isFullscreen ? <span className="material-symbols-rounded">fullscreen_exit</span> : <span className="material-symbols-rounded">fullscreen</span>}
-                </button>
 
-                {!showBMode && (
-                    <>
-                    <div className="flex grow items-center ml-4 gap-3">
-                        <span>Filter: </span>
-                        <div className='flex grow max-w-96 items-center justify-start gap-2'>
-                            <span className='w-32'>{Math.round(lowCutHz / 1e4) / 100} MHz</span>
-                            <div className='w-full'>
-                                <RangeSlider
-                                    min={minLowCutHz(sampling_freq)}
-                                    max={maxHighCutHz(sampling_freq)}
-                                    step={sampling_freq / 1e4}
-                                    value={[lowCutHz, highCutHz]}
-                                    onInput={i => {
-                                        const [low, high] = i;
-                                        setLowCutHz(low);
-                                        setHighCutHz(high);
-                                    }}
-                                />
-                            </div>
-                            <span className='w-32'>{Math.round(highCutHz / 1e4) / 100} MHz</span>
-                        </div>
-                    </div>
-                        <div className="items-center gap-2">
-                            <span className='px-2 py-0.5 text-xs rounded-md border border-gray-200 bg-white'>
-                                {dataFrame?.measurement.rx && dataFrame.measurement.rx.length > 0 ? `Rx: ${dataFrame.measurement.rx.join(', ')}` : 'No Signal'}
-                            </span>
-                        </div>
-                    </>
-                )}
-            </div>
-        </div>)
+    return (
+        <>
+            {showBMode ? (
+                <Plot
+                    data={[{
+                        z: bmodeBuffer.length ? bmodeBuffer : [[]],
+                        type: 'heatmap',
+                        colorscale: 'Viridis',
+                        reversescale: true,
+                    }] as Plotly.Data[]}
+                    useResizeHandler
+                    style={{ width: "100%", height: "100%" }}
+                    layout={{
+                        autosize: true,
+                        margin: { t: 10, r: 10, b: 30, l: 40 },
+                        shapes: [...bmodePeakShapes, spacerShape],
+                        yaxis: { autorange: true, title: { text: 'Channel' } },
+                    }}
+                />
+            ) : (
+                <Plot
+                    data={([
+                        {
+                            x: data ? data.map((_, i) => i) : [],
+                            y: data ?? [],
+                            type: 'scatter', mode: 'lines', name: 'Raw', line: { color: 'blue' },
+                        },
+                        {
+                            x: data ? data.map((_, i) => i) : [],
+                            y: envelopeFrame.length ? envelopeFrame : [],
+                            type: 'scatter', mode: 'lines', name: 'Filtered Envelope', line: { color: 'fuchsia' },
+                            visible: 'legendonly',
+                        },
+                        {
+                            x: wavelet_transform ? wavelet_transform.map((_, i) => i / UPSAMPLING_FACTOR) : [],
+                            y: wavelet_transform ?? [],
+                            type: 'scatter', mode: 'lines', name: 'Wavelet Envelope', line: { color: 'red' },
+                            visible: 'legendonly',
+                        }
+                    ]) as Plotly.Data[]}
+                    useResizeHandler
+                    style={{ width: "100%", height: "100%" }}
+                    layout={{
+                        autosize: true,
+                        uirevision: "fixed",
+                        showlegend: true,
+                        title: { text: `Node ${dataFrame?.mesh_origin}`, y: 0.95, x: 0.5 },
+                        legend: { orientation: 'h' },
+                        margin: { t: 10, r: 10, b: 30, l: 40 },
+                        yaxis: { range: [-2000, 2000] },
+                        shapes: [...signalPeakShapes, spacerShape],
+                    }}
+                />
+            )}
+        </>
+    )
 }

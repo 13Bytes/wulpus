@@ -1,7 +1,9 @@
 from __future__ import annotations
 import asyncio
 from serial.tools.list_ports_common import ListPortInfo
+from typing import Optional
 import numpy as np
+from wulpus.interface import ReceiveDataPayload
 from wulpus.interface_usb import WulpusDongleUsb
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -39,7 +41,11 @@ class WulpusDongleMock(WulpusDongleUsb):
         self.acq_num = 0
         return True
 
-    async def receive_data(self, wulpus: Wulpus, acq_length: int = 400):
+    async def receive_data(
+        self,
+        wulpus: Wulpus,
+        acq_length: int = 400,
+    ) -> Optional[ReceiveDataPayload]:
         """
         Mock: Return random data with the same structure as the original (async).
         """
@@ -51,7 +57,11 @@ class WulpusDongleMock(WulpusDongleUsb):
         acq_num = self.acq_num
 
         self.acq_num += 1
-        return rf_arr, acq_num, tx_rx_id
+        return {
+            "rf_data": rf_arr,
+            "acq_number": int(acq_num),
+            "tx_rx_id": int(tx_rx_id),
+        }
 
     def get_status(self):
         return "Dongle is mocked!"

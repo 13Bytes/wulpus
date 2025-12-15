@@ -4,9 +4,9 @@
 #include "mesh.h"
 #include <hal/nrf_spim.h>
 #include <nrfx_spim.h>
+#include <zephyr/bluetooth/mesh.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
-#include <zephyr/bluetooth/mesh.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(spi);
@@ -128,7 +128,7 @@ void spi_session_thread(void) {
 
       // Build one full frame and enqueue as a single item
       frame_chunk chunk = {0};
-      chunk.header.timestamp = k_uptime_get_32();
+      chunk.header.timestamp = mesh_get_network_timestamp();
       chunk.header.size = BLE_PCKT_SEND_SIZE;
       chunk.header.addr = my_addr;
       memcpy(&chunk.data, m_rx_buffer, BLE_PCKT_SEND_SIZE);

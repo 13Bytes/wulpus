@@ -39,8 +39,8 @@ static const uint8_t app_key[16] = {
 // --- Types ---
 struct frame_chunk_header {
   uint32_t timestamp; // Sequence ID (Microseconds)
-  uint8_t offset;     // Chunk Index
-  uint8_t size;       // Count of uint16 elements
+  uint8_t offset;     // Chunk Index (1/2 x index of 16-byte blocks) -> bytes = offset * 4
+  uint8_t size;       // Count of uint16 elements  -> bytes = size * 2
 } __packed;
 typedef struct frame_chunk_header frame_chunk_header;
 
@@ -75,7 +75,11 @@ void mesh_tx_thread(void);
 int mesh_publish_self_gateway();
 int mesh_send_gateway_addr(uint16_t addr);
 int mesh_publish_config(const uint8_t *config_data, size_t len);
+int mesh_publish_config(const uint8_t *config_data, size_t len);
 void mesh_request_gateway_addr(void);
+void mesh_set_time_authority(void);
+void mesh_unset_time_authority(void);
+uint32_t mesh_get_network_timestamp(void);
 extern const struct bt_mesh_comp comp;
 extern uint8_t dev_uuid[16];
 

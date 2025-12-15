@@ -6,7 +6,7 @@ import { AnalysisConfigPanel } from './AnalysisConfigPanel';
 import { fetchAnalyzeConfig, postAnalyzeConfig } from './api';
 import { ConfigFilesPanel } from './ConfigFilesPanel';
 import { ConnectionPanel } from './ConnectionPanel';
-import { Graph } from './Graph';
+import { GraphPanel } from './GraphPanel';
 import { getInitialConfig } from './helper';
 import { SeriesPanel } from './SeriesPanel';
 import { TxRxConfigPanel } from './TxRxConfig';
@@ -25,9 +25,9 @@ function App() {
   });
 
   const [statuses, setStatuses] = useState<Status[]>([]);
-  const [dataFrames, setDataFrames] = useState<DataFrame[]>([]);
+  const [dataFrames, setDataFrames] = useState<Record<number, DataFrame[]>>({});
   const [selectedWulpusId, setSelectedWulpusId] = useState(0)
-  const selectedDataFrame = dataFrames.find(f => f.wulpus_id === (selectedWulpusId ?? 0))
+  const selectedDataFrame = dataFrames[selectedWulpusId ?? 0]
 
   // Derive primary status
   const primaryStatus = statuses.length > 0 ? statuses[0] : null;
@@ -80,14 +80,26 @@ function App() {
         const dataFrame = lastJsonMessage as DataFrame;
         const deviceId = dataFrame.wulpus_id ?? 0;
         setDataFrames(prev => {
-          const newFrames = [...prev];
-          const existingIndex = newFrames.findIndex(f => (f.wulpus_id ?? 0) === deviceId);
-          if (existingIndex >= 0) {
-            newFrames[existingIndex] = dataFrame;
-          } else {
-            newFrames.push(dataFrame);
+          if (!prev[deviceId]) {
+            return {
+              ...prev,
+              [deviceId]: [dataFrame]
+            };
           }
-          return newFrames;
+          const frameCopy = [...prev[deviceId]]
+          const oldDataFrameIndex = frameCopy.findIndex(f => (f.mesh_origin === dataFrame.mesh_origin));
+          if (oldDataFrameIndex != -1) {
+            // update existing
+            frameCopy[oldDataFrameIndex] = dataFrame;
+          }
+          else {
+            frameCopy.push(dataFrame);
+          }
+          return {
+            ...prev,
+            [deviceId]: frameCopy
+          };
+
         });
 
         // If this frame is the currently selected on, update b-mode buffer, and peaks
@@ -193,7 +205,8 @@ function App() {
                 </select>
               )}
             </div>
-            <Graph dataFrame={selectedDataFrame} bmodeBuffer={bmodeBuffer} peaksPerChannel={peaksPerChannel} usConfig={usConfig} />
+            {/* TODO: update graph to support multiple data frames at the same time */}
+            <GraphPanel dataFrames={selectedDataFrame} bmodeBuffer={bmodeBuffer} peaksPerChannel={peaksPerChannel} usConfig={usConfig} />
           </div>
 
           <div className="bg-white rounded-lg shadow">

@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, List, Tuple
-from typing_extensions import TypedDict
+from typing import Optional, List
+from typing_extensions import NotRequired, TypedDict
 
 import numpy as np
 from serial.tools.list_ports_common import ListPortInfo
@@ -31,6 +31,14 @@ class ConnectionOption(TypedDict):
     device: str
     description: str
     type: ConnectionType
+
+
+class ReceiveDataPayload(TypedDict):
+    rf_data: np.ndarray
+    acq_number: int
+    tx_rx_id: int
+    sensor_addr: NotRequired[int]
+    timestamp: NotRequired[int]
 
 
 class DongleInterface(ABC):
@@ -70,12 +78,8 @@ class DongleInterface(ABC):
         self,
         wulpus: Wulpus,
         acq_length: int = 400,
-    ) -> Optional[Tuple[np.ndarray, int, int]]:
-        """
-        Receive a single data acquisition frame.
-        acquisition_running is dict {"running": bool}
-        Returns a tuple of (rf_data int16 array, acq_number, tx_rx_id) or None.
-        """
+    ) -> Optional[ReceiveDataPayload]:
+        """Return RF samples, acquisition metadata, and optional device info."""
         raise NotImplementedError
 
     @abstractmethod

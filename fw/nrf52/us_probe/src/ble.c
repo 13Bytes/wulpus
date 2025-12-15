@@ -1,16 +1,16 @@
 #include "ble.h"
+#include "helper.h"
 #include "main.h"
 #include "mesh.h"
-#include "helper.h"
 #include "spi.h"
 #include <bluetooth/services/nus.h>
+#include <stdio.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <stdio.h>
 
 LOG_MODULE_REGISTER(ble);
 
@@ -37,8 +37,8 @@ void ble_init_device_name(const uint8_t *dev_uuid)
 {
   // Use last 2 bytes of device UUID to create unique name
   // Format: WULPUS_PROBE_AABB (where AA and BB are hex values)
-  snprintf(device_name, DEVICE_NAME_MAX_LEN, "%s_%02X%02X",
-           DEVICE_NAME_BASE, dev_uuid[14], dev_uuid[15]);
+  snprintf(device_name, DEVICE_NAME_MAX_LEN, "%s_%02X%02X", DEVICE_NAME_BASE,
+           dev_uuid[14], dev_uuid[15]);
   device_name_len = strlen(device_name);
 
   // Update the advertising data length
@@ -142,7 +142,9 @@ static void connected(struct bt_conn *conn, uint8_t err)
     update_phy(conn);
     k_sleep(K_MSEC(50)); // wait a bit for PHY update to take effect
     LOG_INF("Connection interval: %d units (x1.25 for ms)", info.le.interval);
-    LOG_INF("It seems like I'm now the gateway - broadcasting my address to the Mesh");
+    LOG_INF("It seems like I'm now the gateway - broadcasting my address to "
+            "the Mesh");
+    mesh_set_time_authority();
     mesh_publish_self_gateway();
   }
   else
@@ -203,8 +205,8 @@ void ble_tx_thread(void)
   while (1)
   {
     k_msgq_get(&ble_tx_msgq, &tx_data, K_FOREVER);
-    LOG_INF("BLE TX thread got frame (len %d) (waited %lldms for queue)",
-            tx_data.header.size, k_uptime_get() - last_gpio_interrupt_time);
+    LOG_INF("BLE TX thread got frame (addr %04x, len %d) (waited %lldms for queue)",
+            tx_data.header.addr, tx_data.header.size, k_uptime_get() - last_gpio_interrupt_time);
     if (tx_data.header.size != BLE_PCKT_SEND_SIZE)
     {
       LOG_ERR("Unexpected frame size %d (expected %d)", tx_data.header.size,
@@ -236,13 +238,17 @@ void ble_tx_thread(void)
       unsigned retries = 5;
       do
       {
-        size_t const message_len = MIN((BLE_HEADER_SZE + tx_data.header.size) - (i * BYTES_PR_XFER_TX), BYTES_PR_XFER_TX);
+        size_t const message_len =
+            MIN((BLE_HEADER_SZE + tx_data.header.size) - (i * BYTES_PR_XFER_TX),
+                BYTES_PR_XFER_TX);
         if (message_len > bt_nus_get_mtu(current_conn))
         {
-          LOG_WRN("max BLE message len %d overexceeded! (attempt to send: %d)", bt_nus_get_mtu(current_conn), message_len);
+          LOG_WRN("max BLE message len %d overexceeded! (attempt to send: %d)",
+                  bt_nus_get_mtu(current_conn), message_len);
         }
 
-        err = bt_nus_send(current_conn, &buf[i * BYTES_PR_XFER_TX], message_len);
+        err =
+            bt_nus_send(current_conn, &buf[i * BYTES_PR_XFER_TX], message_len);
         if (err == -ENOBUFS || err == -EAGAIN)
         {
           /* Controller/host back-pressure: wait a bit and retry */
@@ -300,7 +306,8 @@ void ble_tx_thread(void)
               (uint32_t)(((uint64_t)20 * 1000U + time_since_last_slow_ms / 2) /
                          (uint64_t)time_since_last_slow_ms);
         }
-        LOG_WRN("BLE sent 20 full frames. Average rate: %u fps (dt=%lld ms)", fps, (long long)time_since_last_slow_ms);
+        LOG_WRN("BLE sent 20 full frames. Average rate: %u fps (dt=%lld ms)",
+                fps, (long long)time_since_last_slow_ms);
         slow_last_send_time_ms = now_ms;
       }
     }
