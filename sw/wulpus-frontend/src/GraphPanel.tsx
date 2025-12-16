@@ -6,9 +6,8 @@ import type { DataFrame, UsConfig } from './websocket-types';
 import RangeSlider from 'react-range-slider-input';
 import { Graph } from './Graph';
 
-export function GraphPanel(props: { dataFrames: DataFrame[] | undefined, bmodeBuffer: number[][], peaksPerChannel: number[][], usConfig: UsConfig }) {
-    const { dataFrames, bmodeBuffer, peaksPerChannel, usConfig } = props;
-    const dataFrame = dataFrames && dataFrames.length > 0 ? dataFrames[dataFrames.length - 1] : undefined;
+export function GraphPanel(props: { dataFrames: DataFrame[] | undefined, usConfig: UsConfig }) {
+    const { dataFrames, usConfig } = props;
     const sampling_freq = usConfig.sampling_freq;
     const plotContainerRef = useRef<HTMLDivElement | null>(null);
     const [showBMode, setShowBMode] = useState<boolean>(false);
@@ -44,6 +43,11 @@ export function GraphPanel(props: { dataFrames: DataFrame[] | undefined, bmodeBu
                     </div>
                 )
             })}
+            {(dataFrames === undefined || dataFrames?.length === 0) && (
+                <div className="text-center text-gray-500 py-20">
+                    No data received yet. Start a measurement to see live signals.
+                </div>
+            )}
             <div className="flex gap-2 mt-2 flex-wrap items-center">
                 <button
                     onClick={() => setShowBMode(o => !o)}
@@ -80,9 +84,7 @@ export function GraphPanel(props: { dataFrames: DataFrame[] | undefined, bmodeBu
                             </div>
                         </div>
                         <div className="items-center gap-2">
-                            <span className='px-2 py-0.5 text-xs rounded-md border border-gray-200 bg-white'>
-                                {dataFrame?.measurement.rx && dataFrame.measurement.rx.length > 0 ? `Rx: ${dataFrame.measurement.rx.join(', ')}` : 'No Signal'}
-                            </span>
+                            {/* Space of opportunities */}
                         </div>
                     </>
                 )}

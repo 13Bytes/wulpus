@@ -32,11 +32,6 @@ function App() {
   // Derive primary status
   const primaryStatus = statuses.length > 0 ? statuses[0] : null;
 
-
-
-  const [bmodeBuffer, setBmodeBuffer] = useState<number[][]>(Array.from({ length: CHANNEL_SIZE }, () => []));
-  const [peaksPerChannel, setPeaksPerChannel] = useState<number[][]>(Array.from({ length: CHANNEL_SIZE }, () => []));
-
   // WulpusConfig state
   const [txRxConfigs, setTxRxConfigs] = useState<TxRxConfig[]>(getInitialConfig().tx_rx_config);
   const [usConfig, setUsConfig] = useState<UsConfig>(getInitialConfig().us_config);
@@ -101,32 +96,6 @@ function App() {
           };
 
         });
-
-        // If this frame is the currently selected on, update b-mode buffer, and peaks
-        if (deviceId === selectedWulpusId) {
-          // Update B-mode buffer for the first/primary device
-          const rx_channel = dataFrame.measurement.rx;
-          const new_data = dataFrame.measurement.data.slice();
-          setBmodeBuffer(prev => {
-            const next = [...prev];
-            for (const channel of rx_channel) {
-              if (channel >= CHANNEL_SIZE) break;
-              next[channel] = new_data;
-            }
-            return next;
-          });
-
-          if (Array.isArray(dataFrame.peaks)) {
-            setPeaksPerChannel(prev => {
-              const next = [...prev];
-              for (const channel of rx_channel) {
-                if (channel >= CHANNEL_SIZE) break;
-                next[channel] = dataFrame.peaks.slice();
-              }
-              return next;
-            });
-          }
-        }
       }
     }
   }, [lastJsonMessage, selectedWulpusId]);
@@ -205,8 +174,7 @@ function App() {
                 </select>
               )}
             </div>
-            {/* TODO: update graph to support multiple data frames at the same time */}
-            <GraphPanel dataFrames={selectedDataFrame} bmodeBuffer={bmodeBuffer} peaksPerChannel={peaksPerChannel} usConfig={usConfig} />
+            <GraphPanel dataFrames={selectedDataFrame} usConfig={usConfig} />
           </div>
 
           <div className="bg-white rounded-lg shadow">

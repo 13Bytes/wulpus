@@ -141,6 +141,11 @@ export function Graph(props: { dataFrame: DataFrame | undefined, usConfig: UsCon
                     }}
                 />
             )}
+            <div className="items-center gap-2">
+                <span className='px-2 py-0.5 text-xs rounded-md border border-gray-200 bg-white'>
+                    {dataFrame?.measurement.rx && dataFrame.measurement.rx.length > 0 ? `Rx: ${dataFrame.measurement.rx.join(', ')}` : 'No Signal'}
+                </span>
+            </div>
         </>
     )
 }

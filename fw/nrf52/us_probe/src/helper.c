@@ -28,6 +28,10 @@ void apply_config(uint8_t *const data, uint16_t len)
   {
     LOG_INF("Starting mesh job as per configuration.");
     set_mesh_job_state(true);
+
+    uint16_t interval_clcks = data[3] | (data[4] << 8);
+    mesh_rand_sender_period_ms = (uint32_t)interval_clcks * 2000 / 65535;
+    LOG_INF("(interval set to %d ms)", mesh_rand_sender_period_ms);
   }
   else
   {

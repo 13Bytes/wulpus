@@ -15,7 +15,7 @@ export function ConnectionPanel(props: { effectiveConfig: WulpusConfig, status: 
 
     const refreshConnections = useCallback(async () => {
         setIsRefreshing(true);
-        toast('scanning...', { icon: <span className="material-symbols-rounded">bluetooth</span> });
+        toast('Scanning...', { icon: <span className="material-symbols-rounded">bluetooth</span> });
         const list = await getBTHConnections();
         setIsRefreshing(false);
         setConnections(list);

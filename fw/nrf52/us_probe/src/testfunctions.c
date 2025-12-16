@@ -8,6 +8,7 @@
 LOG_MODULE_DECLARE(main);
 
 static atomic_t mesh_job_active = ATOMIC_INIT(0);
+uint32_t mesh_rand_sender_period_ms;
 
 void set_mesh_job_state(bool active)
 {
@@ -106,7 +107,7 @@ void mesh_rand_sender_thread(void)
     static uint64_t current_ms = 0;
 
     int64_t loop_start_ms = k_uptime_get();
-    float const MESH_FREQUENCY = 0.5;
+    mesh_rand_sender_period_ms = 2000;
     int const LOG_INTERVAL_CNT = 10;
     uint16_t frame_nr = 0;
     while (1)
@@ -162,7 +163,7 @@ void mesh_rand_sender_thread(void)
             }
 
             int64_t delay_ms =
-                (1000 / MESH_FREQUENCY) - (k_uptime_get() - run_start_ms);
+                mesh_rand_sender_period_ms - (k_uptime_get() - run_start_ms);
             if (delay_ms > 0)
             {
                 k_sleep(K_MSEC(delay_ms));
