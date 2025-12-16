@@ -1,10 +1,8 @@
-import type Plotly from 'plotly.js';
 import { useCallback, useEffect, useRef, useState } from "react";
-import Plot from 'react-plotly.js';
-import { bandpassFIR, hilbertEnvelope, toggleFullscreen } from './helper';
-import type { DataFrame, UsConfig } from './websocket-types';
 import RangeSlider from 'react-range-slider-input';
 import { Graph } from './Graph';
+import { toggleFullscreen } from './helper';
+import type { DataFrame, UsConfig } from './websocket-types';
 
 export function GraphPanel(props: { dataFrames: DataFrame[] | undefined, usConfig: UsConfig }) {
     const { dataFrames, usConfig } = props;

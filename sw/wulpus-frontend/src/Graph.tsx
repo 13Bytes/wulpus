@@ -1,10 +1,9 @@
 import type Plotly from 'plotly.js';
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Plot from 'react-plotly.js';
-import { bandpassFIR, hilbertEnvelope, toggleFullscreen } from './helper';
-import type { DataFrame, UsConfig } from './websocket-types';
-import RangeSlider from 'react-range-slider-input';
 import { CHANNEL_SIZE } from './App';
+import { bandpassFIR, hilbertEnvelope } from './helper';
+import type { DataFrame, UsConfig } from './websocket-types';
 
 export function Graph(props: { dataFrame: DataFrame | undefined, usConfig: UsConfig, showBMode: boolean, lowCutHz: number, highCutHz: number }) {
     const { dataFrame, usConfig, showBMode, lowCutHz, highCutHz } = props;
