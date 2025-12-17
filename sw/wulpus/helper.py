@@ -5,6 +5,7 @@ import inspect
 import io
 import json
 import os
+import re
 from typing import Any, Generic, Iterable, Iterator, Tuple, TypeVar
 from zipfile import ZipFile
 
@@ -49,6 +50,12 @@ def zip_to_dataframe(path: str, ignore_first_frames: int = 0) -> Tuple[pd.DataFr
         df_flat = pd.read_parquet(io.BytesIO(zf.read('data.parquet')))
     config = WulpusConfig.model_validate(config_raw)
 
+    # check if filename matches this style: wulpus-2025-12-16_12-20-17-id-DAE2829D3394
+    filename = os.path.splitext(os.path.basename(path))[0]
+    wulpus_id = "default"
+    if re.fullmatch(r"wulpus-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-id-[A-F0-9]{12}", filename):
+        wulpus_id = filename.split("-")[-1]
+
     # Columns created by save
     meta_cols = {'tx', 'rx', 'aq_number', 'tx_rx_id', 'log_version'}
     sample_cols = [c for c in df_flat.columns if c not in meta_cols]
@@ -69,6 +76,7 @@ def zip_to_dataframe(path: str, ignore_first_frames: int = 0) -> Tuple[pd.DataFr
         'aq_number': df_flat['aq_number'].to_numpy(),
         'tx_rx_id': df_flat['tx_rx_id'].to_numpy() if 'tx_rx_id' in df_flat else np.arange(len(df_flat)),
         'log_version': df_flat['log_version'].to_numpy() if 'log_version' in df_flat else np.full(len(df_flat), 1, dtype=int),
+        'wulpus': np.full(len(df_flat), wulpus_id, dtype=str)
     }, index=df_flat.index)
 
     num_txrx_configs = config.us_config.num_txrx_configs
