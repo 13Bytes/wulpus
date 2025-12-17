@@ -33,17 +33,13 @@ static const struct bt_data sd[] = {
 
 // --- Functions ---
 
-void ble_init_device_name(const uint8_t *dev_uuid)
+void ble_init_device_name(uint16_t addr)
 {
-  // Use last 2 bytes of device UUID to create unique name
-  // Format: WULPUS_PROBE_AABB (where AA and BB are hex values)
-  snprintf(device_name, DEVICE_NAME_MAX_LEN, "%s_%02X%02X", DEVICE_NAME_BASE,
-           dev_uuid[14], dev_uuid[15]);
-  device_name_len = strlen(device_name);
+  snprintf(device_name, DEVICE_NAME_MAX_LEN, "%s_%04x", DEVICE_NAME_BASE, addr);
 
   // Update the advertising data length
+  device_name_len = strlen(device_name);
   ad[1].data_len = device_name_len;
-
   // Set the BT stack device name
   int err = bt_set_name(device_name);
   if (err)
@@ -138,9 +134,9 @@ static void connected(struct bt_conn *conn, uint8_t err)
   {
     LOG_INF("BLE NUS connection established");
     current_conn = bt_conn_ref(conn);
-    k_sleep(K_MSEC(500)); // wait a bit for connection to stabilize
+    k_sleep(K_MSEC(1000)); // wait a bit for connection to stabilize
     update_phy(conn);
-    k_sleep(K_MSEC(50)); // wait a bit for PHY update to take effect
+    k_sleep(K_MSEC(100)); // wait a bit for PHY update to take effect
     LOG_INF("Connection interval: %d units (x1.25 for ms)", info.le.interval);
     LOG_INF("It seems like I'm now the gateway - broadcasting my address to "
             "the Mesh");

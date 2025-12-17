@@ -91,7 +91,6 @@ static void dbg_button_3_handler(const struct device *dev,
 // --- Mesh -------------------------------------
 uint16_t addr;
 static const uint16_t net_idx;
-static const uint16_t app_idx = {0x000};
 static const uint32_t iv_index;
 static uint8_t flags;
 
@@ -196,34 +195,12 @@ int main(void)
     }
     else
     {
-        LOG_ERR("HWINFO not enable - using default UUIDd");
+        LOG_ERR("HWINFO not enable - fallback to default UUID!");
         dev_uuid[0] = 0xdd;
         dev_uuid[1] = 0xdd;
     }
-    // Initialize device name based on hardware ID
-    LOG_INF("Initializing device name...");
-    ble_init_device_name(dev_uuid);
-
-    LOG_INF("Setting up Bluetooth LE Mesh");
-    err = bt_mesh_init(&prov, &comp);
-    if (err)
-    {
-        LOG_ERR("Initializing mesh failed (err %d)\n", err);
-        return err;
-    }
-    if (IS_ENABLED(CONFIG_BT_SETTINGS))
-    {
-        LOG_INF("restoring the Bluetooth state (e.g. pairing keys)");
-        settings_load();
-    }
-    else
-    {
-        LOG_WRN("CONFIG_BT_SETTINGS not enabled - won't restore Bluetooth state");
-    }
-
-    LOG_WRN("Provisioning Mesh (DEBUG)");
     LOG_INF(
-        "Device UUID: "
+        "Mesh Device UUID: "
         "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
         dev_uuid[0], dev_uuid[1], dev_uuid[2], dev_uuid[3], dev_uuid[4],
         dev_uuid[5], dev_uuid[6], dev_uuid[7], dev_uuid[8], dev_uuid[9],
@@ -239,6 +216,27 @@ int main(void)
     }
     LOG_INF("Using address: 0x%04x (derived from bytes 14-15: %02X%02X)", addr,
             dev_uuid[14], dev_uuid[15]);
+
+    LOG_INF("Initializing GATT device name...");
+    ble_init_device_name(addr);
+
+    LOG_INF("Setting up BLE Mesh");
+    err = bt_mesh_init(&prov, &comp);
+    if (err)
+    {
+        LOG_ERR("Initializing mesh failed (err %d)\n", err);
+        return err;
+    }
+
+    if (IS_ENABLED(CONFIG_BT_SETTINGS))
+    {
+        LOG_INF("restoring the Bluetooth state (e.g. pairing keys)");
+        settings_load();
+    }
+    else
+    {
+        LOG_WRN("CONFIG_BT_SETTINGS not enabled - won't restore Bluetooth state");
+    }
 
     err = bt_mesh_provision(net_key, net_idx, flags, iv_index, addr, dev_key);
     if (err == -EALREADY)
