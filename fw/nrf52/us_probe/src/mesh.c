@@ -245,11 +245,9 @@ static void mesh_time_sync_thread(void *a, void *b, void *c)
 
     uint16_t gw_addr = mesh_get_gateway_addr();
     uint16_t gw_time_srv_addr = (uint16_t)(gw_addr + 1);
-    if (!mesh_addr_is_valid_unicast(gw_addr) ||
-        !mesh_addr_is_valid_unicast(gw_time_srv_addr) ||
+    if (!mesh_addr_is_valid_unicast(gw_addr) || !mesh_addr_is_valid_unicast(gw_time_srv_addr) ||
         gw_addr == bt_mesh_primary_addr())
     {
-      LOG_WRN("No valid gateway address known yet - cannot get time");
       k_sleep(K_SECONDS(5));
       continue;
     }

@@ -35,7 +35,7 @@ static const struct bt_data sd[] = {
 
 void ble_init_device_name(uint16_t addr)
 {
-  snprintf(device_name, DEVICE_NAME_MAX_LEN, "%s_%04x", DEVICE_NAME_BASE, addr);
+  snprintf(device_name, DEVICE_NAME_MAX_LEN, "%s_%04X", DEVICE_NAME_BASE, addr);
 
   // Update the advertising data length
   device_name_len = strlen(device_name);
