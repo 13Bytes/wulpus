@@ -132,7 +132,9 @@ export function Graph(props: { dataFrame: DataFrame | undefined, usConfig: UsCon
                         autosize: true,
                         uirevision: "fixed",
                         showlegend: true,
-                        title: { text: `Node ${dataFrame?.mesh_origin}`, y: 0.95, x: 0.5 },
+                        title: {
+                            text: `Node ${dataFrame?.mesh_origin.toString(16).padStart(4, '0').toUpperCase()} (${dataFrame?.measurement.rx && dataFrame.measurement.rx.length > 0 ? `Rx: ${dataFrame.measurement.rx.join(', ')})` : 'No Signal'}`, y: 0.95, x: 0.5
+                        },
                         legend: { orientation: 'h' },
                         margin: { t: 10, r: 10, b: 30, l: 40 },
                         yaxis: { range: [-2000, 2000] },
@@ -140,11 +142,6 @@ export function Graph(props: { dataFrame: DataFrame | undefined, usConfig: UsCon
                     }}
                 />
             )}
-            <div className="items-center gap-2">
-                <span className='px-2 py-0.5 text-xs rounded-md border border-gray-200 bg-white'>
-                    {dataFrame?.measurement.rx && dataFrame.measurement.rx.length > 0 ? `Rx: ${dataFrame.measurement.rx.join(', ')}` : 'No Signal'}
-                </span>
-            </div>
         </>
     )
 }

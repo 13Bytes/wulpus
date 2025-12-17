@@ -33,6 +33,46 @@ static const struct bt_mesh_send_cb send_cb = {
 
 static uint8_t reassembly_buffer[BLE_PCKT_SEND_SIZE];
 
+// --- Time Models ------------------------------
+static struct bt_mesh_time_srv time_srv = BT_MESH_TIME_SRV_INIT(NULL);
+static struct bt_mesh_time_cli time_cli = BT_MESH_TIME_CLI_INIT(NULL);
+
+// --- Time Sync --------------------------------
+static void mesh_time_sync_thread(void *a, void *b, void *c);
+K_THREAD_DEFINE(mesh_time_sync_thread_id, 2048, mesh_time_sync_thread, NULL,
+                NULL, NULL, 7, 0, 0);
+
+static uint16_t mesh_get_gateway_addr(void)
+{
+  const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
+      comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
+  if (!mod || !mod->pub)
+  {
+    return BT_MESH_ADDR_UNASSIGNED;
+  }
+  return mod->pub->addr;
+}
+
+static bool mesh_addr_is_valid_unicast(uint16_t addr)
+{
+  if (addr == BT_MESH_ADDR_UNASSIGNED || addr == BT_MESH_ADDR_ALL_NODES)
+  {
+    return false;
+  }
+  if (BT_MESH_ADDR_IS_GROUP(addr) || BT_MESH_ADDR_IS_VIRTUAL(addr))
+  {
+    return false;
+  }
+  return true;
+}
+
+static bool mesh_time_is_known(void)
+{
+  struct bt_mesh_time_tai tai;
+  network_time_into_tai(&time_srv, k_uptime_get(), &tai);
+  return !tai_is_unknown(&tai);
+}
+
 // --- Functions ---
 static int output_number(bt_mesh_output_action_t action, uint32_t number) {
   LOG_INF("OOB Number: %u\n", number);
@@ -144,9 +184,6 @@ static struct bt_mesh_health_srv health_srv = {
     .cb = &health_srv_cb,
 };
 
-static struct bt_mesh_time_srv time_srv = BT_MESH_TIME_SRV_INIT(NULL);
-static struct bt_mesh_time_cli time_cli = BT_MESH_TIME_CLI_INIT(NULL);
-
 void mesh_set_time_authority(void) {
   LOG_INF("Setting local Time Role to AUTHORITY");
   bt_mesh_time_srv_role_set(&time_srv, BT_MESH_TIME_AUTHORITY);
@@ -172,6 +209,77 @@ void mesh_unset_time_authority(void) {
   bt_mesh_time_srv_role_set(&time_srv, BT_MESH_TIME_RELAY);
 }
 
+static void mesh_time_sync_thread(void *a, void *b, void *c)
+{
+  ARG_UNUSED(a);
+  ARG_UNUSED(b);
+  ARG_UNUSED(c);
+
+  // Wait for provisioning before attempting model communication
+  while (!bt_mesh_is_provisioned())
+  {
+    k_sleep(K_SECONDS(1));
+  }
+
+  // Ensure we start in RELAY role unless we later become authority
+  mesh_unset_time_authority();
+
+  while (1)
+  {
+    if (!bt_mesh_is_provisioned())
+    {
+      k_sleep(K_SECONDS(1));
+      continue;
+    }
+
+    if (i_am_gateway)
+    {
+      // As gateway, provide an authoritative time base.
+      if (!mesh_time_is_known())
+      {
+        mesh_set_time_authority();
+      }
+      k_sleep(K_SECONDS(10));
+      continue;
+    }
+
+    uint16_t gw_addr = mesh_get_gateway_addr();
+    uint16_t gw_time_srv_addr = (uint16_t)(gw_addr + 1);
+    if (!mesh_addr_is_valid_unicast(gw_addr) ||
+        !mesh_addr_is_valid_unicast(gw_time_srv_addr) ||
+        gw_addr == bt_mesh_primary_addr())
+    {
+      LOG_WRN("No valid gateway address known yet - cannot get time");
+      k_sleep(K_SECONDS(5));
+      continue;
+    }
+
+    struct bt_mesh_msg_ctx ctx = {
+        .addr = gw_time_srv_addr,
+        .app_idx = 0x0000,
+        .send_ttl = CONFIG_BT_MESH_DEFAULT_TTL,
+    };
+
+    struct bt_mesh_time_status rsp = {0};
+    int err = bt_mesh_time_cli_time_get(&time_cli, &ctx, &rsp);
+    if (err)
+    {
+      LOG_WRN("Time-get from 0x%04x failed: %d", gw_time_srv_addr, err);
+      k_sleep(K_SECONDS(2));
+      continue;
+    }
+
+    // Apply received network time to our local Time Server instance so
+    // network_time_into_tai() can provide synchronized timestamps.
+    bt_mesh_time_srv_time_set(&time_srv, k_uptime_get(), &rsp);
+    LOG_INF("Time synced from 0x%04x (sec=%u subsec=%u)", gw_time_srv_addr,
+            (unsigned)rsp.tai.sec, (unsigned)rsp.tai.subsec);
+
+    // Keep a gentle refresh cadence.
+    k_sleep(mesh_time_is_known() ? K_SECONDS(30) : K_SECONDS(2));
+  }
+}
+
 uint32_t mesh_get_network_timestamp(void) {
   struct bt_mesh_time_tai tai;
   network_time_into_tai(&time_srv, k_uptime_get(), &tai);
@@ -191,6 +299,7 @@ BT_MESH_MODEL_PUB_DEFINE(vnd_model_pub, NULL, BT_MESH_TX_SDU_MAX);
 int mesh_publish_self_gateway() {
   uint16_t my_addr = bt_mesh_primary_addr();
   i_am_gateway = true;
+  mesh_set_time_authority();
   return mesh_send_gateway_addr(my_addr);
 }
 
@@ -291,7 +400,8 @@ static int mesh_receiving_gateway_update(const struct bt_mesh_model *model,
       i_am_gateway = false;
       mesh_unset_time_authority();
     } else {
-      LOG_ERR("Model has no publication context");
+      i_am_gateway = true;
+      mesh_set_time_authority();
     }
     return 0;
   }
@@ -418,7 +528,7 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
   }
 
   memcpy(&reassembly_buffer[byte_offset], buf->data, data_len);
-  LOG_INF("RX Chunk: TS=%u, Off=%u (idx), Size=%u", header.timestamp,
+  LOG_INF("    RX Chunk: TS=%u, Off=%u (idx), Size=%u", header.timestamp,
           header.offset, header.size);
 
   // Forward to BLE if frame complete

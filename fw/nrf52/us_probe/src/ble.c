@@ -113,11 +113,20 @@ static void update_phy(struct bt_conn *conn)
       .options = BT_CONN_LE_PHY_OPT_NONE,
       .pref_tx_phy = BT_GAP_LE_PHY_2M,
       .pref_rx_phy = BT_GAP_LE_PHY_2M};
-  err = bt_conn_le_phy_update(conn, &preferred_phy);
-  if (err)
+
+  // Retry PHY update if controller is busy
+  for (unsigned i = 0; i < 5; i++)
   {
-    LOG_ERR("bt_conn_le_phy_update() returned %d", err);
+    err = bt_conn_le_phy_update(conn, &preferred_phy);
+    if (err == 0)
+    {
+      LOG_INF("PHY update initiated successfully");
+      return;
+    }
+    LOG_WRN("bt_conn_le_phy_update() failed (err %d), attempt %d/5", err, i + 1);
+    k_sleep(K_MSEC(200 + (i * 100))); // Backoff
   }
+  LOG_ERR("bt_conn_le_phy_update() failed after retries");
 }
 
 static void connected(struct bt_conn *conn, uint8_t err)
