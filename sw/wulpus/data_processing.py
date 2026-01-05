@@ -67,7 +67,7 @@ class MeasurementProcessor:
         series_ups = self._upsample(series, self.config.upsamplingFactor)
         t_ups = series_ups.index.to_numpy()
         wavelet = self._wavelet_transform(
-            series_ups, config, select_level=5)
+            series_ups, config, select_level=4)
         wavelet_env = self._envelope(wavelet)
 
         spacer_region = self._calc_spacer_region(config)

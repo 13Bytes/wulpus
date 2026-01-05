@@ -79,15 +79,97 @@ def format_time_xticks(ax, index, num_ticks: int = 10, rotation: int = 45, tz: O
         ax.set_xticklabels(['Single acquisition'])
         return
 
-    frame_indices = np.linspace(0, n - 1, num_ticks, dtype=int)
+    base_frame_indices = np.linspace(0, n - 1, num_ticks, dtype=int)
+
     idx_vals = index.values
     if np.issubdtype(idx_vals.dtype, np.integer):
-        dt_index = pd.to_datetime(idx_vals, unit='us')
+        dt_index = pd.to_datetime(idx_vals, unit='us', errors='coerce')
     else:
-        dt_index = pd.to_datetime(index)
+        dt_index = pd.to_datetime(index, errors='coerce')
 
     dt_index = format_time_index_to_local(dt_index, tz)
-    labels = [dt.strftime('%H:%M:%S') for dt in dt_index[frame_indices]]
+
+    # Add extra ticks at stitched-log boundaries (large gaps or time going backwards).
+    # Note: do NOT treat dt == 0 as a boundary (duplicate timestamps are common).
+    boundary_indices: np.ndarray
+    # try:
+    dt_seconds = pd.Series(dt_index).diff().dt.total_seconds().to_numpy()
+    dt_pos = dt_seconds[np.isfinite(dt_seconds) & (dt_seconds > 0)]
+
+    # If we can't infer a typical cadence, don't guess aggressively.
+    typical_dt = float(np.median(dt_pos)) if dt_pos.size else float('nan')
+    if np.isfinite(typical_dt) and typical_dt > 0:
+        gap_threshold = 10.0 * typical_dt
+        boundary_indices = np.where(dt_seconds > gap_threshold)[0]
+    else:
+        boundary_indices = np.array([], dtype=int)
+    # except Exception:
+    #     boundary_indices = np.array([], dtype=int)
+
+    frame_indices = np.unique(
+        np.concatenate([base_frame_indices.astype(int),
+                        boundary_indices.astype(int)])
+    )
+    frame_indices = frame_indices[(frame_indices >= 0) & (frame_indices < n)]
+    frame_indices.sort()
+
+    # Drop ticks that land too close together; prefer the later tick in each pair.
+    if frame_indices.size > 1:
+        avg_spacing = n / max(num_ticks, 1)
+        min_spacing = max(1, int(np.floor(0.2 * avg_spacing)))
+
+        original_candidates = frame_indices.copy()
+
+        # Iteratively prune until all neighbors satisfy spacing.
+        changed = True
+        while changed and frame_indices.size > 1:
+            changed = False
+            pruned: list[int] = []
+            for idx in frame_indices:
+                if not pruned or (idx - pruned[-1]) >= min_spacing:
+                    pruned.append(int(idx))
+                else:
+                    pruned[-1] = int(idx)
+                    changed = True
+            frame_indices = np.array(pruned, dtype=int)
+
+        # If pruning left large gaps, re-insert from the original set while keeping spacing.
+        if frame_indices.size > 1:
+            available = [int(i) for i in original_candidates if i not in set(
+                frame_indices.tolist())]
+
+            while True:
+                gaps = np.diff(frame_indices)
+                large_gap_pos = np.where(gaps > 2 * min_spacing)[0]
+                if large_gap_pos.size == 0 or not available:
+                    break
+
+                inserted = False
+                for pos in large_gap_pos:
+                    left = frame_indices[pos]
+                    right = frame_indices[pos + 1]
+                    candidates = [i for i in available if left < i < right]
+                    if not candidates:
+                        continue
+
+                    # Choose the candidate furthest from the edges to keep spacing robust.
+                    best = max(candidates, key=lambda i: min(
+                        i - left, right - i))
+
+                    if (best - left) >= min_spacing and (right - best) >= min_spacing:
+                        frame_indices = np.insert(frame_indices, pos + 1, best)
+                        available.remove(best)
+                        inserted = True
+                        break
+
+                if not inserted:
+                    break
+
+    tick_dts = dt_index[frame_indices]
+    labels = [
+        (dt.strftime('%H:%M:%S') if not pd.isna(dt) else '')
+        for dt in tick_dts
+    ]
     ax.set_xticks(frame_indices)
     ax.set_xticklabels(labels, rotation=rotation)
 
