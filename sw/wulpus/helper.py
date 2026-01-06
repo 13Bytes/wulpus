@@ -6,7 +6,7 @@ import io
 import json
 import os
 import re
-from typing import Any, Generic, Iterable, Iterator, Tuple, TypeVar
+from typing import Any, Generic, Iterable, Iterator, Optional, Tuple, TypeVar
 from zipfile import ZipFile
 
 import numpy as np
@@ -135,6 +135,18 @@ def get_saved_analysis_config() -> AnalysisConfig | None:
         return config
     except:
         return None
+
+
+def to_index_range(idx: pd.Index, t_range: tuple[Optional[int], Optional[int]]) -> tuple[Optional[int], Optional[int]]:
+    start, end = t_range
+    if start is None or end is None or len(idx) == 0:
+        return (None, None)
+    arr = idx.to_numpy()
+    lo = int(np.searchsorted(arr, start, side="left"))
+    hi = int(np.searchsorted(arr, end, side="right") - 1)
+    lo = int(np.clip(lo, 0, len(arr) - 1))
+    hi = int(np.clip(hi, 0, len(arr) - 1))
+    return (None, None) if lo > hi else (lo, hi)
 
 
 T = TypeVar('T')
