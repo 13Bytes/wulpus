@@ -149,6 +149,19 @@ def to_index_range(idx: pd.Index, t_range: tuple[Optional[int], Optional[int]]) 
     return (None, None) if lo > hi else (lo, hi)
 
 
+def to_2d_nan_padded(arr, max_cols=6):
+    n_rows = len(arr)
+    out = np.full((n_rows, max_cols), np.nan, dtype=float)
+
+    for i, row in enumerate(arr):
+        if row.size == 0:
+            continue
+        length = min(row.size, max_cols)
+        out[i, :length] = row[:length]
+
+    return out
+
+
 T = TypeVar('T')
 
 
