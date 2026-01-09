@@ -227,7 +227,6 @@ int main(void)
         LOG_ERR("Initializing mesh failed (err %d)\n", err);
         return err;
     }
-
     if (IS_ENABLED(CONFIG_BT_SETTINGS))
     {
         LOG_INF("restoring the Bluetooth state (e.g. pairing keys)");
@@ -238,7 +237,16 @@ int main(void)
         LOG_WRN("CONFIG_BT_SETTINGS not enabled - won't restore Bluetooth state");
     }
 
-    err = bt_mesh_provision(net_key, net_idx, flags, iv_index, addr, dev_key);
+    k_sleep(K_MSEC(100));
+    if (!bt_mesh_is_provisioned())
+    {
+        LOG_INF("Mesh not provisioned yet - self-provisioning now");
+        err = bt_mesh_provision(net_key, net_idx, flags, iv_index, addr, dev_key);
+    }
+    else
+    {
+        LOG_INF("Mesh already provisioned, using stored settings");
+    }
     if (err == -EALREADY)
     {
         LOG_WRN("Using stored settings - configuration already exists");
