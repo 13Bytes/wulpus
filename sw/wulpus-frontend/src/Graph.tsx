@@ -2,7 +2,7 @@ import type Plotly from 'plotly.js';
 import { useEffect, useState } from "react";
 import Plot from 'react-plotly.js';
 import { CHANNEL_SIZE } from './App';
-import { bandpassFIR, hilbertEnvelope } from './helper';
+import { bandpassFIR, formatHexNodeName, hilbertEnvelope } from './helper';
 import type { DataFrame, UsConfig } from './websocket-types';
 
 export function Graph(props: { dataFrame: DataFrame | undefined, usConfig: UsConfig, showBMode: boolean, lowCutHz: number, highCutHz: number }) {
@@ -133,7 +133,7 @@ export function Graph(props: { dataFrame: DataFrame | undefined, usConfig: UsCon
                         uirevision: "fixed",
                         showlegend: true,
                         title: {
-                            text: `Node ${dataFrame?.mesh_origin.toString(16).padStart(4, '0').toUpperCase()} (${dataFrame?.measurement.rx && dataFrame.measurement.rx.length > 0 ? `Rx: ${dataFrame.measurement.rx.join(', ')})` : 'No Signal'}`, y: 0.95, x: 0.5
+                            text: `Node ${formatHexNodeName(dataFrame?.mesh_origin)} (${dataFrame?.measurement.rx && dataFrame.measurement.rx.length > 0 ? `Rx: ${dataFrame.measurement.rx.join(', ')})` : 'No Signal'}`, y: 0.95, x: 0.5
                         },
                         legend: { orientation: 'h' },
                         margin: { t: 10, r: 10, b: 30, l: 40 },

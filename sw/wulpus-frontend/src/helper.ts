@@ -156,3 +156,7 @@ export async function toggleFullscreen(plotContainerRef: React.RefObject<HTMLDiv
     else if (docWithVendors.msExitFullscreen) await docWithVendors.msExitFullscreen();
   }
 }
+
+export function formatHexNodeName(node?: number): string | undefined {
+  return node?.toString(16).padStart(4, '0').toUpperCase()
+}

@@ -61,7 +61,7 @@ class WulpusMock(Wulpus):
             while index < data_cnt and self._acquisition_running:
                 await asyncio.sleep(self._config.us_config.meas_period / 1e6)
                 self._latest_frame = self._structure_measurement(
-                    self._data[:, index], self._data_tx_rx_id[index], self._data_time[index])
+                    self._data[:, index], time=self._data_time[index])
                 self._new_measurement.set()
                 index += 1
                 self._live_data_cnt = index

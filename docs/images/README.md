@@ -3,6 +3,7 @@
 ## Authors
 - [Frank K. Gürkaynak, ETH Zurich](https://iis-people.ee.ethz.ch/~kgf/) (*.jpg files in `./v1_0`)
 - [Sergei Vostrikov, ETH Zurich](https://scholar.google.com/citations?user=a0KNUooAAAAJ&hl=en) (*.png files and the photos in `./v1_1`)
+- [Louis Dod, UBC](https://13bytes.de/) (files in `./v1_2`)
 
 # Acknoledgment
 We would like to recognize the help of [Victor Kartsch, ETH Zurich](https://scholar.google.it/citations?user=0LY6szsAAAAJ&hl=it) in preparing the media content for WULPUS v1.1 release.
