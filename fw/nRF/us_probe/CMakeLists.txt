@@ -17,6 +17,7 @@ target_sources(app PRIVATE
     src/helper.c
     src/testfunctions.c
     src/timehelper.c
+    src/tx_stats.c
 )
 target_include_directories(app PRIVATE include)
 # NORDIC SDK APP END

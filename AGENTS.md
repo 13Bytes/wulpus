@@ -9,7 +9,7 @@
 
 ## Architecture
 
-- **Firmware**: `fw/msp430/` (ultrasound MCU), `fw/nrf52/` (BLE MCU + USB dongle)
+- **Firmware**: `fw/msp430/` (ultrasound MCU), `fw/nRF/` (BLE MCU + optional USB dongle) with `fw/nRF/us_probe` beeing the the most relevant
 - **Software**: `sw/wulpus/` (FastAPI backend), `sw/wulpus-frontend/` (React frontend)
 - **Communication**: WebSocket for real-time data, REST API for control
 

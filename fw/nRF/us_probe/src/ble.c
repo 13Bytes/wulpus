@@ -3,6 +3,7 @@
 #include "main.h"
 #include "mesh.h"
 #include "spi.h"
+#include "tx_stats.h"
 #include <bluetooth/services/nus.h>
 #include <stdio.h>
 #include <zephyr/bluetooth/bluetooth.h>
@@ -219,10 +220,13 @@ void ble_tx_thread(void)
       continue;
     }
 
+    tx_stats_ble_frame_attempted();
+
     // Check if we have a valid BLE connection
     if (current_conn == NULL)
     {
       LOG_WRN("No active BLE connection - dropping frame");
+      tx_stats_ble_frame_failed();
       continue;
     }
     // Send the frame in 201 byte chunks (202 bytes for the first to signalize
@@ -287,6 +291,7 @@ void ble_tx_thread(void)
 
     if (full_frame_sent)
     {
+      tx_stats_ble_frame_completed();
       int64_t now_ms = k_uptime_get();
       if (last_success_ts_ms != 0)
       {
@@ -315,6 +320,10 @@ void ble_tx_thread(void)
                 fps, (long long)time_since_last_slow_ms);
         slow_last_send_time_ms = now_ms;
       }
+    }
+    else
+    {
+      tx_stats_ble_frame_failed();
     }
   }
 }

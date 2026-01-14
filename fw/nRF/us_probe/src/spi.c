@@ -2,6 +2,7 @@
 #include "ble.h"
 #include "main.h"
 #include "mesh.h"
+#include "tx_stats.h"
 #include <hal/nrf_spim.h>
 #include <nrfx_spim.h>
 #include <zephyr/bluetooth/mesh.h>
@@ -140,6 +141,7 @@ void spi_session_thread(void) {
       int qerr = k_msgq_put(&mesh_tx_msgq, &chunk, K_MSEC(10));
       if (qerr != 0) {
         LOG_WRN("Mesh TX queue full; dropping full frame (err %d)", qerr);
+        tx_stats_mesh_frame_dropped_queue_full();
       }
     }
     // Release session gate

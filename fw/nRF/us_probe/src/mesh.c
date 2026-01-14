@@ -4,6 +4,7 @@
 #include "main.h"
 #include "spi.h"
 #include "timehelper.h"
+#include "tx_stats.h"
 #include <bluetooth/mesh/models.h>
 #include <bluetooth/mesh/time_cli.h>
 #include <bluetooth/mesh/time_srv.h>
@@ -13,6 +14,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
 
 LOG_MODULE_REGISTER(mesh);
 
@@ -23,7 +25,10 @@ K_MUTEX_DEFINE(mesh_pub_mutex);
 K_SEM_DEFINE(mesh_send_sem, 0, 1);
 bool i_am_gateway = false;
 
+static atomic_t mesh_last_send_err;
+
 static void mesh_send_end(int err, void *cb_data) {
+  atomic_set(&mesh_last_send_err, err);
   k_sem_give(&mesh_send_sem);
 }
 
@@ -543,6 +548,7 @@ static int mesh_receiving_data_chunk(const struct bt_mesh_model *model,
     // Use K_NO_WAIT to avoid blocking Mesh thread
     if (k_msgq_put(&ble_tx_msgq, &tx_item, K_NO_WAIT) != 0) {
       LOG_WRN("BLE TX queue full, dropping forwarded mesh frame");
+      tx_stats_ble_frame_dropped_queue_full();
     }
   }
 
@@ -554,6 +560,22 @@ void mesh_tx_thread(void) {
   static struct frame_chunk tx_data; // static to reduce stack usage
   const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
       comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
+
+  /* --- Timing / profiling (ms resolution, low overhead) --- */
+  enum
+  {
+    MESH_TX_TIMING_LOG_EVERY_FRAMES = 10,
+  };
+
+  uint32_t timing_frames = 0;
+  uint64_t sum_queue_wait_ms = 0;
+  uint64_t sum_frame_total_ms = 0;
+  uint64_t sum_block_prep_ms = 0;
+  uint64_t sum_block_send_call_ms = 0;
+  uint64_t sum_block_wait_end_ms = 0;
+  uint32_t max_block_wait_end_ms = 0;
+  uint32_t max_frame_total_ms = 0;
+  uint32_t timing_block_cnt = 0;
 
   if (!mod) {
     LOG_ERR("Vendor model not found");
@@ -575,10 +597,18 @@ void mesh_tx_thread(void) {
   }
 
   while (1) {
+    int64_t q_wait_start_ms = k_uptime_get();
     k_msgq_get(&mesh_tx_msgq, &tx_data, K_FOREVER);
+    int64_t after_get_ms = k_uptime_get();
+    uint32_t queue_wait_ms = (uint32_t)(after_get_ms - q_wait_start_ms);
     LOG_INF("Mesh TX thread got frame");
 
+    int64_t frame_start_ms = after_get_ms;
+
+    tx_stats_mesh_frame_attempted();
+
     if (!bt_mesh_is_provisioned()) {
+      tx_stats_mesh_frame_failed();
       continue;
     }
     // Check if we are trying to send segmented data to a broadcast/group
@@ -588,6 +618,7 @@ void mesh_tx_thread(void) {
                                     mod->pub->addr == BT_MESH_ADDR_ALL_NODES)) {
       LOG_WRN("Cannot send large frame (>11bytes aka. segmented) to "
               "Broadcast/Group address - waiting for Gateway Update...");
+      tx_stats_mesh_frame_failed();
       continue;
     }
 
@@ -595,10 +626,13 @@ void mesh_tx_thread(void) {
     uint16_t block_idx =
         0; // must be dividable by 2, as the number send is for each two blocks
 
+    bool full_frame_sent = true;
+
     LOG_INF("--> TX message (start)");
 
     k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
     while (total_sent < BLE_PCKT_SEND_SIZE) {
+      int64_t block_prep_start_ms = k_uptime_get();
       bt_mesh_model_msg_init(mod->pub->msg, BT_MESH_VND_OP_WULPUS_FRAMECHUNK);
       size_t remaining_bytes = BLE_PCKT_SEND_SIZE - total_sent;
       // Max payload of BLE is ~370 bytes; Header is 6 bytes
@@ -629,23 +663,96 @@ void mesh_tx_thread(void) {
           .send_ttl = CONFIG_BT_MESH_DEFAULT_TTL,
       };
 
+      uint32_t block_prep_ms = (uint32_t)(k_uptime_get() - block_prep_start_ms);
+
       LOG_INF("-->     block %d (%d)", block_idx, header.timestamp);
+      int64_t send_call_start_ms = k_uptime_get();
       int err = bt_mesh_model_send(mod, &ctx, mod->pub->msg, &send_cb, NULL);
+      uint32_t send_call_ms = (uint32_t)(k_uptime_get() - send_call_start_ms);
       if (err) {
         LOG_WRN("Sending failed at block %d: %d", block_idx, err);
+        full_frame_sent = false;
         break;
       } else {
+        int64_t wait_end_start_ms = k_uptime_get();
         k_sem_take(&mesh_send_sem, K_FOREVER);
+        uint32_t wait_end_ms = (uint32_t)(k_uptime_get() - wait_end_start_ms);
+        int end_err = (int)atomic_get(&mesh_last_send_err);
+        if (end_err)
+        {
+          LOG_WRN("Send callback reported failure at block %d: %d", block_idx,
+                  end_err);
+          full_frame_sent = false;
+          break;
+        }
         LOG_INF("        block %d (%d) successfully sent", block_idx,
                 header.timestamp);
         total_sent += bytes_to_send;
         block_idx += blocks_to_send;
+
+        /* Update timing aggregates (only on successful block completion). */
+        sum_block_prep_ms += block_prep_ms;
+        sum_block_send_call_ms += send_call_ms;
+        sum_block_wait_end_ms += wait_end_ms;
+        if (wait_end_ms > max_block_wait_end_ms)
+        {
+          max_block_wait_end_ms = wait_end_ms;
+        }
+        timing_block_cnt++;
       }
 
       // Yield to let the stack process
       k_yield();
     }
     k_mutex_unlock(&mesh_pub_mutex);
+
+    if (full_frame_sent && total_sent >= BLE_PCKT_SEND_SIZE)
+    {
+      tx_stats_mesh_frame_completed();
+    }
+    else
+    {
+      tx_stats_mesh_frame_failed();
+    }
+
+    /* Frame-level timing accounting + periodic summary. */
+    uint32_t frame_total_ms = (uint32_t)(k_uptime_get() - frame_start_ms);
+    sum_queue_wait_ms += queue_wait_ms;
+    sum_frame_total_ms += frame_total_ms;
+    if (frame_total_ms > max_frame_total_ms)
+    {
+      max_frame_total_ms = frame_total_ms;
+    }
+    timing_frames++;
+
+    if ((timing_frames % MESH_TX_TIMING_LOG_EVERY_FRAMES) == 0)
+    {
+      uint32_t avg_queue_wait_ms =
+          (uint32_t)(sum_queue_wait_ms / (uint64_t)timing_frames);
+      uint32_t avg_frame_total_ms =
+          (uint32_t)(sum_frame_total_ms / (uint64_t)timing_frames);
+
+      uint32_t avg_block_prep_ms = 0;
+      uint32_t avg_block_send_call_ms = 0;
+      uint32_t avg_block_wait_end_ms = 0;
+      if (timing_block_cnt > 0)
+      {
+        avg_block_prep_ms = (uint32_t)(sum_block_prep_ms / MESH_TX_TIMING_LOG_EVERY_FRAMES);
+        avg_block_send_call_ms =
+            (uint32_t)(sum_block_send_call_ms / MESH_TX_TIMING_LOG_EVERY_FRAMES);
+        avg_block_wait_end_ms = (uint32_t)(sum_block_wait_end_ms / MESH_TX_TIMING_LOG_EVERY_FRAMES);
+      }
+
+      LOG_WRN(
+          "MeshTX timing (last %u frames, %u total): avgFrame=%ums maxFrame=%ums avgQWait=%ums blocks=%u avgPrep=%ums avgSendCall=%ums avgWaitEnd=%ums maxWaitEnd=%ums",
+          MESH_TX_TIMING_LOG_EVERY_FRAMES, timing_frames, avg_frame_total_ms, max_frame_total_ms,
+          avg_queue_wait_ms, timing_block_cnt, avg_block_prep_ms,
+          avg_block_send_call_ms, avg_block_wait_end_ms, max_block_wait_end_ms);
+      sum_block_prep_ms = 0;
+      sum_block_send_call_ms = 0;
+      sum_block_wait_end_ms = 0;
+      max_block_wait_end_ms = 0;
+    }
   }
 }
 

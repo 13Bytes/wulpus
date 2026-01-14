@@ -20,7 +20,7 @@ typedef struct ble_msg_header ble_msg_header;
 // --- Definitions ---
 #define BLE_SINGLE_PCKT_SIZE 200
 #define BLE_PCKT_SEND_SIZE (201 * 4) // BYTES_PR_XFER_RX * CHUNKS_PER_FRAME
-#define BLE_TX_QUEUE_SIZE 5
+#define BLE_TX_QUEUE_SIZE 3
 
 // --- Externs ---
 extern struct k_msgq ble_tx_msgq;

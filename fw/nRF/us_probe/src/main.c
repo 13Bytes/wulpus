@@ -304,6 +304,7 @@ int main(void)
     while (1)
     {
         k_sleep(K_MSEC(1000));
+        tx_stats_log_if_due(k_uptime_get());
         gpio_pin_toggle_dt(&led);
     }
 
