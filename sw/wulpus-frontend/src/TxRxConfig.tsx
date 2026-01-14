@@ -1,4 +1,4 @@
-import { CHANNEL_SIZE } from "./App";
+import { CHANNEL_SIZE } from "./constants";
 import { MultiNumField } from "./MultiNumField";
 import type { TxRxConfig } from './websocket-types';
 

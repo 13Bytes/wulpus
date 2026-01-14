@@ -7,14 +7,12 @@ import { fetchAnalyzeConfig, postAnalyzeConfig } from './api';
 import { ConfigFilesPanel } from './ConfigFilesPanel';
 import { ConnectionPanel } from './ConnectionPanel';
 import { GraphPanel } from './GraphPanel';
+import { CHANNEL_SIZE, LOCAL_KEY } from './constants';
 import { getInitialConfig } from './helper';
 import { SeriesPanel } from './SeriesPanel';
 import { TxRxConfigPanel } from './TxRxConfig';
 import { USConfigPanel } from './UsConfig';
 import type { DataFrame, Status, TxRxConfig, UsConfig, WulpusConfig } from './websocket-types';
-
-export const LOCAL_KEY = 'wulpus-config-v1';
-export const CHANNEL_SIZE = 8;
 
 function App() {
   const queryClient = useQueryClient();

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from 'react-hot-toast';
 import { deactivateMock, getBTHConnections, postActivateMock, postConnect, postDisconnect, postStart, postStop, type ConnectionOption } from "./api";
+import { genConfPackage } from "./helper";
 import { StatusView } from "./StatusView";
 import type { Status, WulpusConfig } from "./websocket-types";
 
@@ -54,12 +55,43 @@ export function ConnectionPanel(props: { effectiveConfig: WulpusConfig, status: 
         }
     }
 
+    function handleShowConfPackage() {
+        try {
+            const pkg = genConfPackage(effectiveConfig);
+            const hex = Array.from(pkg)
+                .map((b) => '0x' + b.toString(16).padStart(2, '0').toUpperCase())
+                .join(' ');
+
+            toast(
+                (t) => (
+                    <div className="max-w-[80vw]">
+                        <div className="font-medium mb-1">Config package (68 bytes)</div>
+                        <pre className="text-xs whitespace-pre-wrap break-words font-mono">{"{\n"}{hex}{"\n}"}</pre>
+                        <div className="w-full justify-end flex">
+                            <button onClick={() => toast.dismiss(t.id)} className="bg-gray-100 hover:bg-gray-200 rounded px-3 py-2 text-sm">OK</button>
+                        </div>
+                    </div>),
+                { duration: 12000, },
+            );
+        } catch (e) {
+            if (e instanceof Error) toast.error(e.message);
+            else toast.error('Failed to generate config package');
+        }
+    }
+
 
     return (
         <div className="p-4 space-y-3">
             <div className="flex gap-2 flex-row items-center">
                 <h2 className="font-medium ">Connections {isMock ? ' (Simulation)' : ''}</h2>
                 <div className="grow" />
+                <button
+                    onClick={handleShowConfPackage}
+                    title="Show config package bytes"
+                    className="hover:bg-gray-100 text-gray-800 flex items-center rounded"
+                >
+                    <span className="material-symbols-rounded">data_object</span>
+                </button>
                 {isMock &&
                     <>
                         <button

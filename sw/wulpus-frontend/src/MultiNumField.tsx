@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CHANNEL_SIZE } from './App';
+import { CHANNEL_SIZE } from './constants';
 
 export function MultiNumField({ label, values, onChange, showChannelBoxes = false, color = 'bg-green-500' }: {
     label: string;

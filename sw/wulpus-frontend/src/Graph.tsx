@@ -1,7 +1,7 @@
 import type Plotly from 'plotly.js';
 import { useEffect, useState } from "react";
 import Plot from 'react-plotly.js';
-import { CHANNEL_SIZE } from './App';
+import { CHANNEL_SIZE } from './constants';
 import { bandpassFIR, formatHexNodeName, hilbertEnvelope } from './helper';
 import type { DataFrame, UsConfig } from './websocket-types';
 
