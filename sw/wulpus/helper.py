@@ -6,7 +6,7 @@ import io
 import json
 import os
 import re
-from typing import Any, Generic, Iterable, Iterator, Tuple, TypeVar
+from typing import Any, Generic, Iterable, Iterator, Optional, Tuple, TypeVar
 from zipfile import ZipFile
 
 import numpy as np
@@ -139,6 +139,31 @@ def get_saved_analysis_config() -> AnalysisConfig | None:
         return config
     except:
         return None
+
+
+def to_index_range(idx: pd.Index, t_range: tuple[Optional[int], Optional[int]]) -> tuple[Optional[int], Optional[int]]:
+    start, end = t_range
+    if start is None or end is None or len(idx) == 0:
+        return (None, None)
+    arr = idx.to_numpy()
+    lo = int(np.searchsorted(arr, start, side="left"))
+    hi = int(np.searchsorted(arr, end, side="right") - 1)
+    lo = int(np.clip(lo, 0, len(arr) - 1))
+    hi = int(np.clip(hi, 0, len(arr) - 1))
+    return (None, None) if lo > hi else (lo, hi)
+
+
+def to_2d_nan_padded(arr, max_cols=6):
+    n_rows = len(arr)
+    out = np.full((n_rows, max_cols), np.nan, dtype=float)
+
+    for i, row in enumerate(arr):
+        if row.size == 0:
+            continue
+        length = min(row.size, max_cols)
+        out[i, :length] = row[:length]
+
+    return out
 
 
 T = TypeVar('T')
