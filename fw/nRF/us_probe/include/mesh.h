@@ -19,7 +19,7 @@
 #define BT_MESH_VND_OP_WULPUS_GATEWAY_REQ                                      \
   BT_MESH_MODEL_OP_3(0xC5, BT_MESH_VND_ID)
 
-#define MESH_TX_QUEUE_SIZE 5
+#define MESH_TX_QUEUE_SIZE 3
 #define WULPUS_GROUP_ADDR 0xC000
 
 // --- DEBUG ---

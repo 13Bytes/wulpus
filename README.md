@@ -66,11 +66,12 @@ In a nutshell, to build your own instance of WULPUS, the following steps should 
 # Usage
 
 Please refer to chapter 3 of the [WULPUS User Manual](docs/wulpus_user_manual.pdf) for detailed information.
+The information is accurate, even with an outdated UI.
 
 Starting a measurement with WULPUS can be accomplished in three simple steps:
 - Power up the probe, either from the micro-USB connector or from the battery connector
-- Connect the USB dongle to the host PC
-- Activate the Python environent, launch the Jupyter notebook located in `sw` folder, and follow the instructions in the notebook
+- Run the userinterface: unpack and execute the provided zip-archive (from Github's Releases)
+- Establish BLE Connect to the host PC (dongle or direct)
 
 # Citation
 If you would like to reference the project, please cite the following paper:
@@ -125,7 +126,7 @@ License (`CC-BY-4.0`) (see `docs/images/LICENSE`):
 
 - `docs/images/`
 
-The `fw/msp430/` and `fw/nrf52/` directories contain third-party sources that come with their own
+The `fw/msp430/` and `fw/nRF/` directories contain third-party sources that come with their own
 licenses. See the respective folders and source files for the licenses used.
 
 ## Limitation of Liability

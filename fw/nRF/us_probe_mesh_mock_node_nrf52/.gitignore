@@ -1,0 +1,10 @@
+# editors
+*.swp
+*~
+
+# build
+/build*/
+.settings
+.launches
+.claude
+.cache

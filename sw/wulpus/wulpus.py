@@ -5,13 +5,11 @@ import inspect
 import io
 import os
 import time
-from enum import IntEnum
 from typing import Union
 from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
-from typing_extensions import TypedDict
 from wulpus.wulpus_model import Measurement, Status
 from wulpus.helper import ensure_dir
 from wulpus.interface import DongleInterface, ReceiveDataPayload
@@ -39,6 +37,7 @@ class Wulpus:
         self._last_connection: str = ''
         self._latest_frame: Union[Measurement, None] = None
         self._data:  Union[np.ndarray, None] = None
+        self._mesh_origin:  Union[np.ndarray, None] = None
         self._data_acq_num:  Union[np.ndarray, None] = None
         self._data_tx_rx_id:  Union[np.ndarray, None] = None
         self._data_time:  Union[np.ndarray, None] = None
@@ -133,6 +132,7 @@ class Wulpus:
         number_of_acq = self._config.us_config.num_acqs
         num_samples = self._config.us_config.num_samples
         self._data = np.zeros((num_samples, number_of_acq), dtype='<i2')
+        self._mesh_origin = np.zeros(number_of_acq, dtype=np.uint32)
         self._data_acq_num = np.zeros(number_of_acq, dtype='<u2')
         self._data_tx_rx_id = np.zeros(number_of_acq, dtype=np.uint8)
         self._data_time = np.zeros(number_of_acq, dtype=np.uint64)
@@ -147,18 +147,13 @@ class Wulpus:
             if payload is None or not self._acquisition_running:
                 continue
 
-            frame_timestamp = payload.get(
-                "timestamp", int(time.time_ns() / 1e3))
-            rf_data = payload["rf_data"]
-            acq_number = payload["acq_number"]
-            tx_rx_id = payload["tx_rx_id"]
-            self._latest_frame = self._structure_measurement(
-                payload, frame_timestamp
-            )
-            self._data[:, data_cnt] = rf_data
-            self._data_acq_num[data_cnt] = acq_number
-            self._data_tx_rx_id[data_cnt] = tx_rx_id
-            self._data_time[data_cnt] = frame_timestamp
+            measurement: Measurement = self._structure_measurement(payload)
+            self._latest_frame = measurement
+            self._data[:, data_cnt] = payload["rf_data"]
+            self._mesh_origin[data_cnt] = measurement["mesh_origin"]
+            self._data_acq_num[data_cnt] = payload["acq_number"]
+            self._data_tx_rx_id[data_cnt] = payload["tx_rx_id"]
+            self._data_time[data_cnt] = measurement["time"]
             # Signal new data; will be cleared by listener in associated `task_broadcast_data()`, which accesses `get_latest_frame()`
             self._new_measurement.set()
             data_cnt += 1
@@ -168,6 +163,7 @@ class Wulpus:
         await current_intf.send_config(gen_restart_package())
         # Trim data to actual measured size
         self._data = self._data[:, :data_cnt]
+        self._mesh_origin = self._mesh_origin[:data_cnt]
         self._data_acq_num = self._data_acq_num[:data_cnt]
         self._data_time = self._data_time[:data_cnt]
         self._data_tx_rx_id = self._data_tx_rx_id[:data_cnt]
@@ -201,6 +197,7 @@ class Wulpus:
             'measurement': [pd.Series(self._data[:, i]) for i in range(self._live_data_cnt)],
             "tx": [self._config.tx_rx_config[i].tx_channels for i in self._data_tx_rx_id],
             "rx": [self._config.tx_rx_config[i].rx_channels for i in self._data_tx_rx_id],
+            "wulpus": self._mesh_origin,
             "aq_number": self._data_acq_num,
             "log_version": 1,
             "tx_rx_id": self._data_tx_rx_id
@@ -225,19 +222,21 @@ class Wulpus:
     def get_latest_frame(self) -> Union[Measurement, None]:
         return self._latest_frame
 
-    def _structure_measurement(self, payload: ReceiveDataPayload, timestamp: int) -> Measurement:
+    def _structure_measurement(self, payload: ReceiveDataPayload, **kvargs) -> Measurement:
         rf_data = payload["rf_data"]
         tx_rx_id = payload["tx_rx_id"]
         mesh_origin = payload.get("sensor_addr", 0)
 
         tx_rx_config = self._config.tx_rx_config[tx_rx_id]
-        return Measurement(
+        measurement_data = Measurement(
             data=rf_data.tolist(),
-            time=int(timestamp),
+            time=payload.get("timestamp", int(time.time_ns() / 1e3)),
             tx=tx_rx_config.tx_channels if tx_rx_config.tx_channels else [],
             rx=tx_rx_config.rx_channels if tx_rx_config.rx_channels else [],
             mesh_origin=mesh_origin,
         )
+        measurement_data.update(kvargs)
+        return measurement_data
 
     def _disconnected_callback(self, *args, **kwargs):
         print("Device disconnected unexpectedly.")

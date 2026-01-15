@@ -55,9 +55,12 @@ def zip_to_dataframe(path: str, ignore_first_frames: int = 0) -> Tuple[pd.DataFr
     wulpus_id = "default"
     if re.fullmatch(r"wulpus-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-id-[A-F0-9]{12}", filename):
         wulpus_id = filename.split("-")[-1]
+    wulpus = np.full(len(df_flat), wulpus_id)
+    if ('wulpus' in df_flat.columns):
+        wulpus = df_flat['wulpus'].to_numpy()
 
     # Columns created by save
-    meta_cols = {'tx', 'rx', 'aq_number', 'tx_rx_id', 'log_version'}
+    meta_cols = {'tx', 'rx', 'aq_number', 'tx_rx_id', 'log_version', 'wulpus'}
     sample_cols = [c for c in df_flat.columns if c not in meta_cols]
 
     # Ensure numeric order for sample columns (they were saved as strings)
@@ -69,6 +72,7 @@ def zip_to_dataframe(path: str, ignore_first_frames: int = 0) -> Tuple[pd.DataFr
         for _, row in df_flat.iterrows()
     )
 
+
     df = pd.DataFrame({
         'measurement': measurements,
         'tx': df_flat['tx'].tolist(),
@@ -76,7 +80,7 @@ def zip_to_dataframe(path: str, ignore_first_frames: int = 0) -> Tuple[pd.DataFr
         'aq_number': df_flat['aq_number'].to_numpy(),
         'tx_rx_id': df_flat['tx_rx_id'].to_numpy() if 'tx_rx_id' in df_flat else np.arange(len(df_flat)),
         'log_version': df_flat['log_version'].to_numpy() if 'log_version' in df_flat else np.full(len(df_flat), 1, dtype=int),
-        'wulpus': np.full(len(df_flat), wulpus_id, dtype=str)
+        'wulpus': wulpus
     }, index=df_flat.index)
 
     num_txrx_configs = config.us_config.num_txrx_configs
@@ -98,7 +102,7 @@ def find_latest_measurement_zip(n=1) -> list[str]:
     zip_files = glob.glob(os.path.join(measurement_dir, '*.zip'))
     if not zip_files:
         raise FileNotFoundError(f"No zip files found in {measurement_dir}")
-    zip_files.sort()
+    zip_files.sort(reverse=True)
     return zip_files[:n]
 
 

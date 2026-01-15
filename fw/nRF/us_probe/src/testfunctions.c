@@ -2,6 +2,7 @@
 #include "ble.h"
 #include "main.h"
 #include "mesh.h"
+#include "tx_stats.h"
 #include <zephyr/logging/log.h>
 #include <zephyr/bluetooth/mesh.h>
 
@@ -35,6 +36,7 @@ void send_random_data(uint8_t tx_rx_id, uint16_t meas_frame_nr,
     if (qerr != 0)
     {
         LOG_WRN("BLE TX queue full; dropping full frame (err %d)", qerr);
+        tx_stats_ble_frame_dropped_queue_full();
     }
 }
 
@@ -141,13 +143,15 @@ void mesh_rand_sender_thread(void)
                 if (k_msgq_put(&ble_tx_msgq, &tx_chunk, K_NO_WAIT) != 0)
                 {
                     LOG_WRN("BLE TX queue full; dropping frame");
+                    tx_stats_ble_frame_dropped_queue_full();
                 }
             }
             else
             {
                 if (k_msgq_put(&mesh_tx_msgq, &tx_chunk, K_NO_WAIT) != 0)
                 {
-                    LOG_WRN("Mesh TX queue full; dropping forwarded frame");
+                    LOG_WRN("Mesh TX queue full; dropping frame");
+                    tx_stats_mesh_frame_dropped_queue_full();
                 }
             }
             send_count++;
