@@ -395,6 +395,11 @@ static int mesh_receiving_gateway_update(const struct bt_mesh_model *model,
   uint16_t new_addr = net_buf_simple_pull_le16(buf);
 
   struct bt_mesh_model *mod = (struct bt_mesh_model *)model;
+  if (current_conn != NULL)
+  {
+    LOG_WRN("Ignoring Gateway Update (0x%04x) due to active BLE connection", new_addr);
+    return 0;
+  }
   if (mod->pub) {
     mod->pub->addr = new_addr;
     LOG_INF("Gateway address updated to 0x%04x (from 0x%04x)", new_addr,

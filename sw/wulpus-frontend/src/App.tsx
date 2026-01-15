@@ -7,7 +7,7 @@ import { fetchAnalyzeConfig, postAnalyzeConfig } from './api';
 import { ConfigFilesPanel } from './ConfigFilesPanel';
 import { ConnectionPanel } from './ConnectionPanel';
 import { GraphPanel } from './GraphPanel';
-import { CHANNEL_SIZE, LOCAL_KEY } from './constants';
+import { LOCAL_KEY } from './constants';
 import { getInitialConfig } from './helper';
 import { SeriesPanel } from './SeriesPanel';
 import { TxRxConfigPanel } from './TxRxConfig';
