@@ -14,6 +14,7 @@
 #include "main.h"
 #include "mesh.h"
 #include "spi.h"
+#include "tx_stats.h"
 #include "testfunctions.h"
 
 LOG_MODULE_REGISTER(main);

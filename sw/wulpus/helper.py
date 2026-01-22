@@ -64,13 +64,12 @@ def zip_to_dataframe(path: str, ignore_first_frames: int = 0) -> Tuple[pd.DataFr
     sample_cols = [c for c in df_flat.columns if c not in meta_cols]
 
     # Ensure numeric order for sample columns (they were saved as strings)
-    sample_cols = sorted(sample_cols, key=lambda c: int(c))
+    sample_cols = sorted(sample_cols, key=int)
+
+    sample_arr = df_flat.loc[:, sample_cols].to_numpy(copy=False)
 
     # Rebuild `measurement` as a Series per row
-    measurements = list(
-        pd.Series(row[sample_cols].to_numpy(copy=False))
-        for _, row in df_flat.iterrows()
-    )
+    measurements = [pd.Series(row, copy=False) for row in sample_arr]
 
 
     df = pd.DataFrame({

@@ -5,7 +5,7 @@
 
 LOG_MODULE_REGISTER(tx_stats);
 
-#define TX_STATS_LOG_INTERVAL_MS (30 * 1000)
+#define TX_STATS_LOG_INTERVAL_MS (5 * 1000)
 
 static atomic_t ble_attempted_frames;
 static atomic_t ble_completed_frames;
