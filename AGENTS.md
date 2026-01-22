@@ -6,12 +6,13 @@
 - **Frontend dev**: `npm run dev` in `sw/wulpus-frontend/` (dev server at http://localhost:5173/)
 - **Frontend build**: `npm run build` in `sw/wulpus-frontend/`
 - **Frontend lint**: `npm run lint` in `sw/wulpus-frontend/`
+- **Build nRF firmware**: `C:\ncs\v3.1.1\zephyr\zephyr-env.cmd` to get access to all zephyr commands. Then `west build` and optional `west flash`
 
 ## Architecture
 
 - **Firmware**: `fw/msp430/` (ultrasound MCU), `fw/nRF/` (BLE MCU + optional USB dongle) with `fw/nRF/us_probe` beeing the the most relevant
 - **Software**: `sw/wulpus/` (FastAPI backend), `sw/wulpus-frontend/` (React frontend)
-- **Communication**: WebSocket for real-time data, REST API for control
+- **Communication between Backend and Frontend**: WebSocket for real-time data, REST API for control-messages
 
 ## Code Style
 
@@ -25,4 +26,4 @@
 ### General
 Write code where the naming of variables and functions is self explanatory.
 Comments should be used sparingly.
-Make sure to not catch error-cases that logically can't occur.
+Make sure to keep try-catch sections to a minimum. Especially don't catch error-cases that logically can't occur.

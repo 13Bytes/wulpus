@@ -1,1 +1,0 @@
-- [ ] Extend BLE GATT messages of frames also with date info from Mesh
