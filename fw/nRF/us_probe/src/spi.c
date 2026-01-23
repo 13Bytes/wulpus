@@ -6,6 +6,8 @@
 #include <hal/nrf_spim.h>
 #include <nrfx_spim.h>
 #include <zephyr/bluetooth/mesh.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -20,6 +22,9 @@ K_MUTEX_DEFINE(tx_buffer_mutex); // Defined here, used by BLE/Mesh
 
 static const nrfx_spim_t spim_inst = NRFX_SPIM_INSTANCE(SPIM_INST_IDX);
 
+static const struct gpio_dt_spec spi_ss_gpio =
+    GPIO_DT_SPEC_GET(SPI_SS_NODE, gpios);
+
 // Semaphore to serialize sessions triggered by the data-ready IRQ
 K_SEM_DEFINE(single_session, 1, 1);
 // Semaphore signaled on SPI transfer completion
@@ -29,26 +34,59 @@ K_SEM_DEFINE(data_ready_trigger_sem, 0, 1);
 
 // --- Functions ---
 
-static void spim_handler(nrfx_spim_evt_t const *p_event, void *p_context) {
-  if (p_event->type == NRFX_SPIM_EVENT_DONE) {
+static void spim_handler(nrfx_spim_evt_t const *p_event, void *p_context)
+{
+  if (p_event->type == NRFX_SPIM_EVENT_DONE)
+  {
     // Signal that transfer is complete
     k_sem_give(&spi_done_sem);
   }
 }
 
-void us_spi_init(void) {
+static uint32_t get_spim_ss_pin(void)
+{
+  if (!device_is_ready(spi_ss_gpio.port))
+  {
+    LOG_ERR("SPI SS GPIO device not ready");
+  }
+
+  if (spi_ss_gpio.port == DEVICE_DT_GET(DT_NODELABEL(gpio0)))
+  {
+    return NRF_GPIO_PIN_MAP(0, spi_ss_gpio.pin);
+  }
+
+  if (spi_ss_gpio.port == DEVICE_DT_GET(DT_NODELABEL(gpio1)))
+  {
+    return NRF_GPIO_PIN_MAP(1, spi_ss_gpio.pin);
+  }
+
+#if DT_NODE_EXISTS(DT_NODELABEL(gpio2))
+  if (spi_ss_gpio.port == DEVICE_DT_GET(DT_NODELABEL(gpio2)))
+  {
+    return NRF_GPIO_PIN_MAP(2, spi_ss_gpio.pin);
+  }
+#endif
+
+  LOG_ERR("Unsupported SPI SS GPIO controller");
+  return NRF_GPIO_PIN_MAP(0, spi_ss_gpio.pin);
+}
+
+void us_spi_init(void)
+{
   LOG_INF("Starting SPI initialization");
   nrfx_err_t err;
 
   // Initialize SPIM
+  uint32_t ss_pin = get_spim_ss_pin();
   nrfx_spim_config_t spim_config =
-      NRFX_SPIM_DEFAULT_CONFIG(SCK_PIN, MOSI_PIN, MISO_PIN, SS_PIN);
+      NRFX_SPIM_DEFAULT_CONFIG(SCK_PIN, MOSI_PIN, MISO_PIN, ss_pin);
   spim_config.frequency = NRFX_MHZ_TO_HZ(8);
   spim_config.mode = NRF_SPIM_MODE_1;
   spim_config.bit_order = NRF_SPIM_BIT_ORDER_MSB_FIRST;
   spim_config.irq_priority = SPI_1_PRIO;
   err = nrfx_spim_init(&spim_inst, &spim_config, spim_handler, NULL);
-  if (err != NRFX_SUCCESS) {
+  if (err != NRFX_SUCCESS)
+  {
     LOG_ERR("Failed to initialize SPIM instance %d with err: %d", SPIM_INST_IDX,
             err);
     return;
@@ -62,18 +100,21 @@ void us_spi_init(void) {
   LOG_INF("SPI init complete");
 }
 
-void spi_session_thread(void) {
+void spi_session_thread(void)
+{
   LOG_INF("SPI session thread spawned");
   uint16_t my_addr = bt_mesh_primary_addr();
 
-  while (1) {
+  while (1)
+  {
     // Wait for GPIO interrupt to trigger a session
     LOG_INF("Waiting for SPI trigger...");
     k_sem_take(&data_ready_trigger_sem, K_FOREVER);
     LOG_INF("SPI session thread activated");
 
     // Ensure only one read session runs at a time (serialize sessions)
-    if (k_sem_take(&single_session, K_NO_WAIT) != 0) {
+    if (k_sem_take(&single_session, K_NO_WAIT) != 0)
+    {
       LOG_WRN("SPI session already in progress; skipping trigger");
       continue;
     }
@@ -87,7 +128,8 @@ void spi_session_thread(void) {
         m_tx_buffer, BYTES_PR_XFER_TX, m_rx_buffer, BYTES_PR_XFER_RX);
 
     bool xfer_failed = false;
-    for (int i = 0; i < CHUNKS_PER_FRAME; i++) {
+    for (int i = 0; i < CHUNKS_PER_FRAME; i++)
+    {
       // Update pointers for this chunk (manual increment since HW has 255-byte
       // limit)
       xfer.p_tx_buffer = &m_tx_buffer[i * BYTES_PR_XFER_TX];
@@ -95,33 +137,39 @@ void spi_session_thread(void) {
 
       nrfx_err_t nerr =
           nrfx_spim_xfer(&spim_inst, &xfer, NRFX_SPIM_FLAG_REPEATED_XFER);
-      if (nerr != NRFX_SUCCESS) {
+      if (nerr != NRFX_SUCCESS)
+      {
         LOG_ERR("SPI xfer %d start failed: %d", i, nerr);
         xfer_failed = true;
         break;
       }
 
       // Wait for this chunk to complete
-      if (k_sem_take(&spi_done_sem, K_MSEC(100)) != 0) {
+      if (k_sem_take(&spi_done_sem, K_MSEC(100)) != 0)
+      {
         LOG_ERR("SPI xfer %d timeout", i);
         xfer_failed = true;
         break;
       }
     }
 
-    if (!xfer_failed) {
+    if (!xfer_failed)
+    {
       LOG_INF("SPI session complete");
       LOG_INF("SPI RX: SOF=0x%02X, tx_rx_id=%d, frame_nr=%d", m_rx_buffer[0],
               m_rx_buffer[1], (m_rx_buffer[3] << 8) | m_rx_buffer[2]);
 
       bool all_zero = true;
-      for (int i = 4; i < 100; i++) {
-        if (m_rx_buffer[i] != 0) {
+      for (int i = 4; i < 100; i++)
+      {
+        if (m_rx_buffer[i] != 0)
+        {
           all_zero = false;
           break;
         }
       }
-      if (all_zero) {
+      if (all_zero)
+      {
         LOG_WRN("Frame appears to be empty/stopped - NOT enqueueing");
         k_sem_give(&single_session);
         continue; // Don't enqueue empty frames
@@ -139,7 +187,8 @@ void spi_session_thread(void) {
       LOG_INF("Mesh queue depth used: %d/%d", queue_used, MESH_TX_QUEUE_SIZE);
 
       int qerr = k_msgq_put(&mesh_tx_msgq, &chunk, K_MSEC(10));
-      if (qerr != 0) {
+      if (qerr != 0)
+      {
         LOG_WRN("Mesh TX queue full; dropping full frame (err %d)", qerr);
         tx_stats_mesh_frame_dropped_queue_full();
       }

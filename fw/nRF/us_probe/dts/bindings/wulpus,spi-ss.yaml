@@ -1,0 +1,18 @@
+# Devicetree binding for selecting the SPI slave-select GPIO for the Wulpus probe
+
+compatible: "wulpus,spi-ss"
+
+description: |
+  Helper node used by the Wulpus probe firmware to locate the SPI slave-select
+  (chip select) GPIO via a devicetree alias (spi-ss).
+
+properties:
+  gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO specifier for the SPI slave-select pin.
+
+  label:
+    type: string
+    required: false

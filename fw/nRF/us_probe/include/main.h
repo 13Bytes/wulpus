@@ -15,23 +15,6 @@
 #define DBG_BUTTON_2_NODE DT_NODELABEL(dbg_button_2)
 #define DBG_BUTTON_3_NODE DT_NODELABEL(dbg_button_3)
 
-// --- SPIM Definitions -------------------------
-#define SPI_NODE DT_ALIAS(spi_conn)
-
-#if DT_NODE_EXISTS(DT_NODELABEL(spi1))
-#define SPIM_INST_IDX 1
-#define SS_PIN 15
-#elif DT_NODE_EXISTS(DT_NODELABEL(spi20))
-#define SPIM_INST_IDX 20
-#define SS_PIN NRF_GPIO_PIN_MAP(2, 5)
-#else
-#error "No compatible SPI instance found (spi1 or spi20)"
-#endif
-
-#define SPI_1_PRIO 1
-#define TRANSFER_INTERVAL_US                                                   \
-  300 // Time between SPI transfers (300µs as in old firmware)
-
 // --- Bluetooth Definitions --------------------
 #define DEVICE_NAME_BASE "WULPUS_PROBE"
 #define DEVICE_NAME_MAX_LEN 30

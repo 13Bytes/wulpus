@@ -4,6 +4,7 @@
         data-ready = &data_ready_pin;
         ble-cnfg-ready = &ble_cnfg_ready_pin;
         spi-conn = &spi1;
+        spi-ss = &spi_ss_pin;
     };
 
     chosen {
@@ -21,6 +22,12 @@
             gpios = <&gpio0 19 GPIO_ACTIVE_HIGH>;
             label = "BLE Configuration Ready Pin";
         };
+    };
+
+    spi_ss_pin: spi_ss_pin {
+        compatible = "wulpus,spi-ss";
+        gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+        label = "SPI SS Pin";
     };
 
     buttons {

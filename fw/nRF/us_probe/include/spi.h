@@ -1,6 +1,8 @@
 #ifndef SPI_H
 #define SPI_H
 
+#include <hal/nrf_gpio.h>
+#include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 
@@ -10,7 +12,14 @@
 #define CHUNKS_PER_FRAME 4
 #define MIN_INTERRUPT_INTERVAL_MS 15
 
+#define SPI_NODE DT_ALIAS(spi_conn)
+#define SPI_SS_NODE DT_ALIAS(spi_ss)
 #define SPI_PINCTRL_NODE DT_CHILD(DT_PINCTRL_0(SPI_NODE, 0), group1)
+
+#define SPI_SS_NODE_EXISTS DT_NODE_EXISTS(SPI_SS_NODE)
+#if !SPI_SS_NODE_EXISTS
+#error "Missing required devicetree alias 'spi-ss' (DT_ALIAS(spi_ss))"
+#endif
 
 // Extract port (bits 5-9) and pin (bits 0-4) from NRF_PSEL format
 #define NRF_GET_PORT(psel) (((psel) >> 5) & 0x1F)
@@ -20,6 +29,16 @@
 #define MOSI_PIN PSEL_TO_PIN(DT_PROP_BY_IDX(SPI_PINCTRL_NODE, psels, 0))
 #define MISO_PIN PSEL_TO_PIN(DT_PROP_BY_IDX(SPI_PINCTRL_NODE, psels, 1))
 #define SCK_PIN PSEL_TO_PIN(DT_PROP_BY_IDX(SPI_PINCTRL_NODE, psels, 2))
+
+#if DT_NODE_EXISTS(DT_NODELABEL(spi1))
+#define SPIM_INST_IDX 1
+#elif DT_NODE_EXISTS(DT_NODELABEL(spi20))
+#define SPIM_INST_IDX 20
+#else
+#error "No compatible SPI instance found (spi1 or spi20)"
+#endif
+
+#define SPI_1_PRIO 1
 
 // --- Externs ---
 extern uint8_t m_tx_buffer[BYTES_PR_XFER_TX * CHUNKS_PER_FRAME];
