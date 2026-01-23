@@ -25,7 +25,7 @@
     };
 
     spi_ss_pin: spi_ss_pin {
-        compatible = "wulpus,spi-ss";
+        compatible = "wulpus,gpio-signal";
         gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
         label = "SPI SS Pin";
     };

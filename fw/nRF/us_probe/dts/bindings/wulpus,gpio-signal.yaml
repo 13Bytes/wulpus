@@ -1,0 +1,17 @@
+# Devicetree binding for simple GPIO signals used by the Wulpus probe firmware
+
+compatible: "wulpus,gpio-signal"
+
+description: |
+  Helper node used by the Wulpus probe firmware to locate a GPIO signal via
+  devicetree aliases.
+
+properties:
+  gpios:
+    type: phandle-array
+    required: true
+    description: GPIO specifier for the signal.
+
+  label:
+    type: string
+    required: false

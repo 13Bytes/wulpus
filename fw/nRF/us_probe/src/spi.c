@@ -55,10 +55,12 @@ static uint32_t get_spim_ss_pin(void)
     return NRF_GPIO_PIN_MAP(0, spi_ss_gpio.pin);
   }
 
+#if DT_NODE_EXISTS(DT_NODELABEL(gpio1))
   if (spi_ss_gpio.port == DEVICE_DT_GET(DT_NODELABEL(gpio1)))
   {
     return NRF_GPIO_PIN_MAP(1, spi_ss_gpio.pin);
   }
+#endif
 
 #if DT_NODE_EXISTS(DT_NODELABEL(gpio2))
   if (spi_ss_gpio.port == DEVICE_DT_GET(DT_NODELABEL(gpio2)))

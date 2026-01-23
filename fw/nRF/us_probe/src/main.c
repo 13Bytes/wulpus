@@ -19,20 +19,31 @@
 
 LOG_MODULE_REGISTER(main);
 
+#define HAS_DBG_BUTTON_2 DT_NODE_EXISTS(DBG_BUTTON_2_NODE)
+#define HAS_DBG_BUTTON_3 DT_NODE_EXISTS(DBG_BUTTON_3_NODE)
+
 // --- GPIOs ---
 const struct gpio_dt_spec ble_cnfg_ready =
     GPIO_DT_SPEC_GET(BLE_CNFG_READY_NODE, gpios);
 const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
 const struct gpio_dt_spec data_ready = GPIO_DT_SPEC_GET(DATA_READY_NODE, gpios);
+#if HAS_DBG_BUTTON_2
 const struct gpio_dt_spec dbg_button_2 =
     GPIO_DT_SPEC_GET(DBG_BUTTON_2_NODE, gpios);
+#endif
+#if HAS_DBG_BUTTON_3
 const struct gpio_dt_spec dbg_button_3 =
     GPIO_DT_SPEC_GET(DBG_BUTTON_3_NODE, gpios);
+#endif
 
 // callback for data-ready GPIO interrupt, triggering SPIM transfer
 struct gpio_callback data_ready_cb;
+#if HAS_DBG_BUTTON_2
 struct gpio_callback dbg_button_2_cb;
+#endif
+#if HAS_DBG_BUTTON_3
 struct gpio_callback dbg_button_3_cb;
+#endif
 
 int64_t last_gpio_interrupt_time = 0;
 static void gpio_interrupt_handler(const struct device *dev,
@@ -120,17 +131,28 @@ int main(void)
 
     LOG_INF("Initializing GPIOs...");
     if (!gpio_is_ready_dt(&led) || !gpio_is_ready_dt(&data_ready) ||
-        !gpio_is_ready_dt(&ble_cnfg_ready) || !gpio_is_ready_dt(&dbg_button_2) ||
-        !gpio_is_ready_dt(&dbg_button_3))
+        !gpio_is_ready_dt(&ble_cnfg_ready)
+    #if HAS_DBG_BUTTON_2
+        || !gpio_is_ready_dt(&dbg_button_2)
+    #endif
+    #if HAS_DBG_BUTTON_3
+        || !gpio_is_ready_dt(&dbg_button_3)
+    #endif
+        )
     {
         LOG_ERR("GPIO devices not ready.");
         return 0;
     }
     err = gpio_pin_configure_dt(&led, GPIO_OUTPUT_LOW) |
           gpio_pin_configure_dt(&ble_cnfg_ready, GPIO_OUTPUT_LOW) |
-          gpio_pin_configure_dt(&data_ready, GPIO_INPUT) |
-          gpio_pin_configure_dt(&dbg_button_2, GPIO_INPUT) |
-          gpio_pin_configure_dt(&dbg_button_3, GPIO_INPUT);
+          gpio_pin_configure_dt(&data_ready, GPIO_INPUT)
+    #if HAS_DBG_BUTTON_2
+          | gpio_pin_configure_dt(&dbg_button_2, GPIO_INPUT)
+    #endif
+    #if HAS_DBG_BUTTON_3
+          | gpio_pin_configure_dt(&dbg_button_3, GPIO_INPUT)
+    #endif
+          ;
     if (err < 0)
     {
         LOG_ERR("Error configuring GPIO pins");
@@ -149,15 +171,19 @@ int main(void)
         return err;
     }
 
+#if HAS_DBG_BUTTON_2
     gpio_init_callback(&dbg_button_2_cb, dbg_button_2_handler,
                        BIT(dbg_button_2.pin));
     gpio_add_callback_dt(&dbg_button_2, &dbg_button_2_cb);
     gpio_pin_interrupt_configure_dt(&dbg_button_2, GPIO_INT_EDGE_TO_ACTIVE);
+#endif
 
+#if HAS_DBG_BUTTON_3
     gpio_init_callback(&dbg_button_3_cb, dbg_button_3_handler,
                        BIT(dbg_button_3.pin));
     gpio_add_callback_dt(&dbg_button_3, &dbg_button_3_cb);
     gpio_pin_interrupt_configure_dt(&dbg_button_3, GPIO_INT_EDGE_TO_ACTIVE);
+#endif
 
     LOG_INF("Initializing settings subsystem");
     err = settings_subsys_init();

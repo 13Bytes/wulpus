@@ -1,6 +1,5 @@
 / {
     aliases {
-        led0 = &led_nrf54;
         data-ready = &data_ready_pin;
         ble-cnfg-ready = &ble_cnfg_ready_pin;
         spi-conn = &spi20;
@@ -18,17 +17,10 @@
         nordic,nus-uart = &uart30;
     };
 
-    leds {
-        compatible = "gpio-leds";
-        led_nrf54: led_nrf54 {
-            gpios = <&gpio1 10 GPIO_ACTIVE_HIGH>;
-            label = "NRF54 LED";
-        };
-
-        ble_cnfg_ready_pin: ble_cnfg_ready_pin {
-            gpios = <&gpio1 14 GPIO_ACTIVE_HIGH>;
-            label = "BLE Configuration Ready Pin";
-        };
+    ble_cnfg_ready_pin: ble_cnfg_ready_pin {
+        compatible = "wulpus,gpio-signal";
+        gpios = <&gpio1 14 GPIO_ACTIVE_HIGH>;
+        label = "BLE Configuration Ready Pin";
     };
 
     buttons {
@@ -37,18 +29,10 @@
             gpios = <&gpio1 7 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
             label = "Data Ready Pin";
         };
-        dbg_button_2: dbg_button_2 {
-            gpios = <&gpio1 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-            label = "Debug Button 2";
-        };
-        dbg_button_3: dbg_button_3 {
-            gpios = <&gpio0 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
-            label = "Debug Button 3";
-        };
     };
 
     spi_ss_pin: spi_ss_pin {
-        compatible = "wulpus,spi-ss";
+        compatible = "wulpus,gpio-signal";
         gpios = <&gpio2 5 GPIO_ACTIVE_LOW>;
         label = "SPI SS Pin";
     };

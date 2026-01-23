@@ -14,7 +14,7 @@ bool own_message(const struct bt_mesh_model *model, const struct bt_mesh_msg_ctx
   return elem->rt->addr == ctx->addr;
 }
 
-void apply_config(uint8_t *const data, uint16_t len)
+void apply_config(const uint8_t *data, uint16_t len)
 {
   LOG_INF("Applying new configuration. Len: %d", len);
 

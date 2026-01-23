@@ -11,9 +11,9 @@
 #define LED_NODE DT_ALIAS(led0)
 #define DATA_READY_NODE DT_ALIAS(data_ready)
 #define BLE_CNFG_READY_NODE DT_ALIAS(ble_cnfg_ready)
-#define DEBUG_LED_NODE DT_ALIAS(debug_led)
-#define DBG_BUTTON_2_NODE DT_NODELABEL(dbg_button_2)
-#define DBG_BUTTON_3_NODE DT_NODELABEL(dbg_button_3)
+#define DEBUG_LED_NODE DT_ALIAS(led1)
+#define DBG_BUTTON_2_NODE DT_ALIAS(sw2)
+#define DBG_BUTTON_3_NODE DT_ALIAS(sw3)
 
 // --- Bluetooth Definitions --------------------
 #define DEVICE_NAME_BASE "WULPUS_PROBE"

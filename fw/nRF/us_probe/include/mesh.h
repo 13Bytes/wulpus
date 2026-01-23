@@ -2,6 +2,7 @@
 #define MESH_H
 
 #include "ble.h"
+#include <stdint.h>
 #include <bluetooth/mesh/models.h>
 #include <zephyr/bluetooth/mesh.h>
 #include <zephyr/kernel.h>
@@ -82,5 +83,7 @@ void mesh_unset_time_authority(void);
 uint32_t mesh_get_network_timestamp(void);
 extern const struct bt_mesh_comp comp;
 extern uint8_t dev_uuid[16];
+
+uint16_t bt_mesh_primary_addr(void);
 
 #endif // MESH_H
