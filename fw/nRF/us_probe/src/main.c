@@ -10,6 +10,8 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/util.h>
 
+#include <zephyr/drivers/i2c.h>
+
 #include "ble.h"
 #include "helper.h"
 #include "main.h"
@@ -17,6 +19,7 @@
 #include "tx_stats.h"
 #include "testfunctions.h"
 #include "wulpus_node.h"
+#include "i2c.h"
 
 #if IS_ENABLED(CONFIG_BT_MESH)
 #include "mesh.h"
@@ -176,6 +179,11 @@ int main(void)
     {
         LOG_ERR("Error configuring GPIO pins");
         return 0;
+    }
+
+    err = npm2100_init_sequence();
+    if (err) {
+        LOG_ERR("npm2100_init_sequence failed: %d", err);
     }
 
     // Register callback first, then enable interrupt to avoid missing edges

@@ -18,6 +18,7 @@ target_sources(app PRIVATE
     src/uplink.c
     src/wulpus_node.c
     src/tx_stats.c
+    src/i2c.c
 )
 
 if(CONFIG_BT_MESH)

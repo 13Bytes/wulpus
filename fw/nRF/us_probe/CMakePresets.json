@@ -7,11 +7,11 @@
     "configurePresets": [
         {
             "name": "build",
-            "displayName": "Build for nRF52 DK nRF52832",
+            "displayName": "Build for nRF54 DK nRF54L15",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build",
             "cacheVariables": {
-                "BOARD": "nrf52dk/nrf52832"
+                "BOARD": "nrf54dk/nrf54l15"
             }
         }
     ]

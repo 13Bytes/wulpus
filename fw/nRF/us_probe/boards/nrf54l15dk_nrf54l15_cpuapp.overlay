@@ -4,9 +4,11 @@
         ble-cnfg-ready = &ble_cnfg_ready_pin;
         spi-conn = &spi20;
         spi-ss = &spi_ss_pin;
+        i2c = &npm2100;
+        pmic = &npm2100;
     };
 
-    chosen {
+    /*chosen {
         // Override default console/shell to use UART30 instead of UART20
         // This allows SPI20 to be used without conflict
         zephyr,console = &uart30;
@@ -15,25 +17,25 @@
         zephyr,bt-mon-uart = &uart30;
         zephyr,bt-c2h-uart = &uart30;
         nordic,nus-uart = &uart30;
-    };
+    };*/
 
     ble_cnfg_ready_pin: ble_cnfg_ready_pin {
         compatible = "wulpus,gpio-signal";
-        gpios = <&gpio1 14 GPIO_ACTIVE_HIGH>;
+        gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
         label = "BLE Configuration Ready Pin";
     };
 
     buttons {
         compatible = "gpio-keys";
         data_ready_pin: data_ready_pin {
-            gpios = <&gpio1 7 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+            gpios = <&gpio0 0 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
             label = "Data Ready Pin";
         };
     };
 
     spi_ss_pin: spi_ss_pin {
         compatible = "wulpus,gpio-signal";
-        gpios = <&gpio2 5 GPIO_ACTIVE_LOW>;
+        gpios = <&gpio1 5 GPIO_ACTIVE_LOW>;
         label = "SPI SS Pin";
     };
 };
@@ -41,17 +43,17 @@
 &pinctrl {
     spi_master_default: spi_master_default {
         group1 {
-            psels = <NRF_PSEL(SPIM_MOSI, 1, 11)>,
-                    <NRF_PSEL(SPIM_MISO, 1, 12)>,
-                    <NRF_PSEL(SPIM_SCK, 1, 9)>;
+            psels = <NRF_PSEL(SPIM_MOSI, 1, 6)>,
+                    <NRF_PSEL(SPIM_MISO, 1, 7)>,
+                    <NRF_PSEL(SPIM_SCK, 1, 8)>;
         };
     };
 
     spi_master_sleep: spi_master_sleep {
         group1 {
-            psels = <NRF_PSEL(SPIM_MOSI, 1, 11)>,
-                    <NRF_PSEL(SPIM_MISO, 1, 12)>,
-                    <NRF_PSEL(SPIM_SCK, 1, 9)>;
+            psels = <NRF_PSEL(SPIM_MOSI, 1, 6)>,
+                    <NRF_PSEL(SPIM_MISO, 1, 7)>,
+                    <NRF_PSEL(SPIM_SCK, 1, 8)>;
             low-power-enable;
         };
     };
@@ -71,6 +73,80 @@
 
 // UART30 for console/shell/RTT (has default pinctrl)
 &uart30 {
-    status = "okay";
+    status = "disabled";
     current-speed = <115200>;
+};
+
+
+/* ---- I2C on P1.02 (SDA), P1.12 (SCL) ---- */
+&i2c21 {
+    status = "okay";
+    pinctrl-0 = <&i2c21_default>;
+    pinctrl-names = "default";
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+
+    npm2100: pmic@74 {
+        compatible = "nordic,npm2100";
+        reg = <0x74>;
+        status = "okay";
+    };
+};
+
+
+&pinctrl {
+    i2c21_default: i2c21_default {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 1, 2)>,
+                    <NRF_PSEL(TWIM_SCL, 1, 12)>;
+            bias-pull-up;
+        };
+    };
+};
+
+
+&button0 {
+    status = "disabled";
+};
+&button1 {
+    status = "disabled";
+};
+&button2 {
+    status = "disabled";
+};
+&button3 {
+    status = "disabled";
+};
+&led0 {
+    status = "disabled";
+};
+&led1 {
+    status = "disabled";
+};
+&led2 {
+    status = "disabled";
+};
+&led3 { 
+    status = "disabled";
+};
+&pwm_led1 {
+    status = "disabled";
+};
+&pwm20 {
+    status = "disabled";
+};
+&spi00 {
+    status = "disabled";
+};
+
+&mx25r64 {
+    status = "disabled";
+};
+
+/delete-node/ &lfxo;
+
+&grtc {
+    /delete-property/ clocks;
+    /delete-property/ clock-names;
+    clocks = <&pclk>;
+    clock-names = "hfclock";
 };
