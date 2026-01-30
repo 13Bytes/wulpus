@@ -25,8 +25,8 @@
 
 #include "hardware.h"
 #include "us_spi.h"
-#include "us_hv_mux.h"
 #include "uslib.h"
+#include "us_hv_mux.h"
 
 // MACROS to help with memory access
 
@@ -65,15 +65,21 @@ void initOtherGpios(void);
 // Function to check if BLE host is ready
 bool isBleReady(void);
 
-// Enable Rx Operational Amplifier power supply
-void enableOpAmpSupply(void);
-// Disable Rx Operational Amplifier power supply
-void disableOpAmpSupply(void);
-
 // Enable Rx Operational Amplifier
 void enableOpAmp(void);
 // Disable Rx Operational Amplifier
 void disableOpAmp(void);
+
+// Enable only HV DC-DC converter on HV PCB
+void enableHvDcDc(void);
+// Disable only HV DC-DC converter on HV PCB
+void disableHvDcDc(void);
+
+#ifndef WULPUS_BUTTON_V2_1
+// Enable Rx Operational Amplifier power supply
+void enableOpAmpSupply(void);
+// Disable Rx Operational Amplifier power supply
+void disableOpAmpSupply(void);
 
 // Enable HV PCB power supply
 void enableHvPcbSupply(void);
@@ -84,7 +90,6 @@ void disableHvPcbSupply(void);
 void enableHvPcbDcDc(void);
 // Disable DC-DC converters on HV PCB
 void disableHvPcbDcDc(void);
-// Disable only HV DC-DC converter on HV PCB
-void disableHvDcDc(void);
+#endif
 
 #endif /* WULPUS_SYS_H_ */

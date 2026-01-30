@@ -45,7 +45,7 @@ static void getConfigPack(void);
 static void configAfterPowerUp(void);
 static void receiveUssConfPackage(void);
 static void usAcquisitionLoop(void);
-static void prepareUSSAcquisition();
+static void prepareUSSAcquisition(void);
 
 // Callbacks implementation
 static void hsPllUnlockCallback(void);
@@ -69,11 +69,15 @@ int main(void)
         // Set default parameters
         tx_rx_id = 0;
         meas_frame_nr = 0;
-
+        #if defined(WULPUS_BUTTON_V2_1)
+        disableHvDcDc();
+        disableOpAmp();
+        #else
         // Power down HV PCB to save energy
         disableHvPcbDcDc();
         disableOpAmpSupply();
         disableHvPcbSupply();
+        #endif
 
         // Wait until we receive Uss configuration package from nRF
         receiveUssConfPackage();
@@ -94,7 +98,9 @@ void configAfterPowerUp(void)
     // nRF <-> MSP and MSP <-> HV MUX communication
     usDmaInit();
     usSpiInit();
+    #if defined(HAS_HV_MUX)
     hvMuxInit();
+    #endif
 
     // Init BLE ready input and LED GPIOs
     initOtherGpios();
@@ -137,6 +143,10 @@ void configAfterPowerUp(void)
     confTimerSlowSwEvents();
     confTimerFastSwEvents();
 
+    // Stop timers to let CPU sleep
+    pauseTimerSlowSwEvents();
+    timerFastStop();
+
     return;
 }
 
@@ -166,17 +176,21 @@ static void receiveUssConfPackage(void)
 
 static void prepareUSSAcquisition()
 {
+    #if defined(WULPUS_BUTTON_V2_1)
+    enableHvDcDc();
+    enableOpAmp();
+    #else
+    // Power down HV PCB to save energy
     enableHvPcbDcDc();
-    // Power up HV PCB
     enableHvPcbSupply();
-    // Enable Power for OPA836
     enableOpAmpSupply();
+    #endif
 
     // Configure Uss according to the new package
     confUsSubsystem();
-
-    // Sleep for 1 ms to let power rail ramp up to expected voltage
-    timerSlowDelay(32, LPM3_bits);
+    
+    // Sleep for 10 ms to let power rail ramp up to expected voltage
+    timerSlowDelay(320, LPM3_bits);
 
     // Configure the events of slow and fast timers
     confTimerSlowSwEvents();
@@ -208,12 +222,14 @@ static void usAcquisitionLoop(void)
             meas_header[3] = (uint8_t)(meas_frame_nr >> 8);
             memcpy((uint16_t *)0x4000, &meas_header, 4);
 
+            #if defined(HAS_HV_MUX)
             // Configure TX config (applied immediately)
             hvMuxConfTx(msp_config.txConfigs[tx_rx_id]);
             // Configure RX config (loaded into shift register but not latched)
             // Latching will occur in the timer interrupt after completion
             // of pulse generation
             hvMuxConfRx(msp_config.rxConfigs[tx_rx_id]);
+            #endif
 
             // Trigger ultrasound acquisition
             no_error = triggerUsAcq();
@@ -252,6 +268,11 @@ static void usAcquisitionLoop(void)
                 if (tx_rx_id >= msp_config.txRxConfLen)
                     tx_rx_id = 0;
             }
+        }
+        else 
+        {
+            // Wait(sleep) for 10 ms for BLE connection to restore
+            timerSlowDelay(320, LPM3_bits);
         }
     }
 }
@@ -309,18 +330,24 @@ static void saphSeqAcqDoneCallback(void)
 
 static void slowTimerCc2Callback(void)
 {
+    #if defined(DISABLE_HV_DCDC_DURING_RX)
     // Turn On DC-DCs
     enableHvPcbDcDc();
     // Enable RX OPA836
     enableOpAmp();
+    #endif
 }
 
 static void fastTimerCc0Callback(void)
 {
+    #if defined(HAS_HV_MUX)
     // Switch HV Mux
     hvMuxLatchOutput();
+    #endif
+    #if defined(DISABLE_HV_DCDC_DURING_RX)
     // Disable HV DC-DC (we don't need V at this point)
-    // disableHvDcDc();
+    disableHvDcDc();
+    #endif
     // Disable Fast Timer
     timerFastStop();
 }

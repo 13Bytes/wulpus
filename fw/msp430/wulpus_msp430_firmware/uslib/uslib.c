@@ -502,8 +502,8 @@ bool triggerUsAcq(void)
     startTimerFast();
 
     // Wait for any of the events
-    waitEvent((SAPH_SEQ_ACQ_DONE_EVENT)  ||
-              (UUPS_INTERRUPT_DBG_EVENT) ||
+    waitEvent((SAPH_SEQ_ACQ_DONE_EVENT)  |
+              (UUPS_INTERRUPT_DBG_EVENT) |
               (HS_PLL_UNLOCK_EVENT), false, LPM0_bits);
 
     // Configure GPIOs after conversion

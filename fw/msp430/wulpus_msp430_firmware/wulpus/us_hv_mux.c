@@ -17,6 +17,7 @@
  * 
  * SPDX-License-Identifier: Apache-2.0
  */
+#if defined HAS_HV_MUX
 
 #include "us_hv_mux.h"
 #include "us_spi.h"
@@ -102,3 +103,5 @@ void hvMuxLatchOutput(void)
     GPIO_setOutputHighOnPin(LE_PIN_PORT, LE_PIN);
 
 }
+
+#endif /* HAS_HV_MUX */

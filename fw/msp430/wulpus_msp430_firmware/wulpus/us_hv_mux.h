@@ -17,7 +17,7 @@
  * 
  * SPDX-License-Identifier: Apache-2.0
  */
-
+#if defined HAS_HV_MUX
 #ifndef US_HV_MUX_H_
 #define US_HV_MUX_H_
 
@@ -38,3 +38,4 @@ void hvMuxConfRx(uint16_t rx_config);
 void hvMuxLatchOutput(void);
 
 #endif /* US_HV_MUX_H_ */
+#endif /* HAS_HV_MUX */

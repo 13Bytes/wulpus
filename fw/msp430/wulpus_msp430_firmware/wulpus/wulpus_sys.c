@@ -132,20 +132,24 @@ bool isNewConfigCondition(uint8_t * spi_rx){
 
 // Initiate MSP430-controlled power switches
 void initAllPowerSwitches(void)
-{
-    // Set output "RxPwr" (powers up input amplifier OPA836 using the load switch U6)
+{   
+    #if defined(WULPUS_BUTTON_V2_1)
+    GPIO_setAsOutputPin(GPIO_PORT_RX_ENABLE, GPIO_PIN_RX_ENABLE);   // Set output "RxEn" (powers up input amplifier)
+    GPIO_setAsOutputPin(GPIO_PORT_HV_DC_ENABLE, GPIO_PIN_HV_DC_ENABLE); // Set output "HV_EN" (HV DC/DC: LT1945)
+    #else
+    // Set output "RxPwr" (powers up input amplifier using the load switch U6)
     GPIO_setAsOutputPin(GPIO_PORT_RX_POWER, GPIO_PIN_RX_POWER);
 
     // Set output "EN HV" (power up HV PCB)
     // Power enable pin for DC-DC converters on HV PCB (powers TPS61222 and LT1945)
     GPIO_setAsOutputPin(GPIO_PORT_HV_SUPPLY, GPIO_PIN_HV_SUPPLY);
 
-    // Set output "RxEn" (powers up input amplifier OPA836)
     // Set output "SW_EN" (Switch DC/DC: TPS61222)
     // Set output "HV_EN" (HV DC/DC: LT1945)
     GPIO_setAsOutputPin(GPIO_PORT_RX_ENABLE, GPIO_PIN_RX_ENABLE);
     GPIO_setAsOutputPin(GPIO_PORT_SWITCH_ENABLE, GPIO_PIN_SWITCH_ENABLE);
     GPIO_setAsOutputPin(GPIO_PORT_HV_DC_ENABLE, GPIO_PIN_HV_DC_ENABLE);
+    #endif
 }
 
 // Init other GPIOs
@@ -153,31 +157,16 @@ void initOtherGpios(void)
 {
     // Set BLE ready pin as input
     GPIO_setAsInputPin(GPIO_PORT_BLE_READY, GPIO_PIN_BLE_READY);
-
+    #if defined(HAS_LED)
     // Configure LED
     GPIO_setAsOutputPin(GPIO_PORT_LED_MSP430, GPIO_PIN_LED_MSP430);
     GPIO_setOutputLowOnPin(GPIO_PORT_LED_MSP430, GPIO_PIN_LED_MSP430);
+    #endif
 }
 
 bool isBleReady(void)
 {
     return GPIO_getInputPinValue(GPIO_PORT_BLE_READY, GPIO_PIN_BLE_READY);
-}
-
-// Enable Rx Operational Amplifier power supply
-void enableOpAmpSupply(void)
-{
-    // Enable Power for OPA836
-    // Set "RxPwr" to high
-    GPIO_setOutputHighOnPin(GPIO_PORT_RX_POWER, GPIO_PIN_RX_POWER);
-}
-
-// Disable Rx Operational Amplifier power supply
-void disableOpAmpSupply(void)
-{
-    // Disable Power for OPA836
-    // Set "RxPwr" to low
-    GPIO_setOutputLowOnPin(GPIO_PORT_RX_POWER, GPIO_PIN_RX_POWER);
 }
 
 // Enable Rx Operational Amplifier
@@ -194,6 +183,37 @@ void disableOpAmp(void)
     // Disable RX OPA836
     // Set "RxEn" to low
     GPIO_setOutputLowOnPin(GPIO_PORT_RX_ENABLE, GPIO_PIN_RX_ENABLE);
+}
+
+// Disable HV DC-DC converter
+void disableHvDcDc(void)
+{
+    // Set "HV_EN" to low (disables the HV DC/DC)
+    GPIO_setOutputLowOnPin(GPIO_PORT_HV_DC_ENABLE, GPIO_PIN_HV_DC_ENABLE);
+}
+
+// Enable HV DC-DC converter
+void enableHvDcDc(void)
+{
+    // Set "HV_EN" to high (enables the HV DC/DC)
+    GPIO_setOutputHighOnPin(GPIO_PORT_HV_DC_ENABLE, GPIO_PIN_HV_DC_ENABLE);
+}
+
+#ifndef WULPUS_BUTTON_V2_1
+// Enable Rx Operational Amplifier power supply
+void enableOpAmpSupply(void)
+{
+    // Enable Power for OPA836
+    // Set "RxPwr" to high
+    GPIO_setOutputHighOnPin(GPIO_PORT_RX_POWER, GPIO_PIN_RX_POWER);
+}
+
+// Disable Rx Operational Amplifier power supply
+void disableOpAmpSupply(void)
+{
+    // Disable Power for OPA836
+    // Set "RxPwr" to low
+    GPIO_setOutputLowOnPin(GPIO_PORT_RX_POWER, GPIO_PIN_RX_POWER);
 }
 
 // Enable HV PCB power supply
@@ -233,12 +253,4 @@ void disableHvPcbDcDc(void)
     GPIO_setOutputLowOnPin(GPIO_PORT_SWITCH_ENABLE,
                            GPIO_PIN_SWITCH_ENABLE | GPIO_PIN_HV_DC_ENABLE);
 }
-
-// Disable only HV DC-DC converter on HV PCB
-void disableHvDcDc(void)
-{
-    // Set "HV1_EN" to low (disables the HV DC/DC LT1945)
-    GPIO_setOutputLowOnPin(GPIO_PORT_HV_DC_ENABLE, GPIO_PIN_HV_DC_ENABLE);
-}
-
-
+#endif

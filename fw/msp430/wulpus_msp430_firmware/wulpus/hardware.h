@@ -11,12 +11,19 @@
 //     (only one should be defined)
 
 // #define WULPUS_BOARD_ETH_V1_0
-#define WULPUS_BOARD_UBC_V1_2
+// #define WULPUS_BOARD_UBC_V1_2
+#define WULPUS_BUTTON_V2_1
+
+// --- Disable HV DCDC during RX acquisition ---
+// disable HV DC-DC converters during RX to reduce noise floor
+// #define DISABLE_HV_DCDC_DURING_RX
 
 // ----------------------------------
 
 #if defined(WULPUS_BOARD_ETH_V1_0)
-
+#warning "Building for WULPUS_BOARD_ETH_V1_0"
+#define HAS_HV_MUX
+#define HAS_LED
 // LED indicator on the acquisition PCB (P1.5)
 #define GPIO_PORT_LED_MSP430 GPIO_PORT_P1
 #define GPIO_PIN_LED_MSP430 GPIO_PIN5
@@ -64,7 +71,9 @@
 #define GPIO_PIN_HV_DC_ENABLE GPIO_PIN5
 
 #elif defined(WULPUS_BOARD_UBC_V1_2)
-
+#warning "Building for WULPUS_BOARD_UBC_V1_2"
+#define HAS_HV_MUX
+#define HAS_LED
 // LED indicator on the UBC PCB (P5.1)
 #define GPIO_PORT_LED_MSP430 GPIO_PORT_P5
 #define GPIO_PIN_LED_MSP430 GPIO_PIN1
@@ -110,6 +119,37 @@
 #define GPIO_PIN_SWITCH_ENABLE GPIO_PIN4
 #define GPIO_PORT_HV_DC_ENABLE GPIO_PORT_P7
 #define GPIO_PIN_HV_DC_ENABLE GPIO_PIN0
+
+#elif defined(WULPUS_BUTTON_V2_1)
+#warning "Building for WULPUS_BUTTON_V2_1"
+// BLE ready signal from the nRF52 (P1.5)
+#define GPIO_PORT_BLE_READY GPIO_PORT_P1
+#define GPIO_PIN_BLE_READY GPIO_PIN5
+
+// Handshake line to the nRF52 indicating data availability (P1.4)
+#define GPIO_PORT_DATA_READY GPIO_PORT_P1
+#define GPIO_PIN_DATA_READY GPIO_PIN4
+
+// nRF52 SPI interface (MSP430 as slave on EUSCI_A1)
+#define GPIO_PORT_NRF_SPI_MOSI GPIO_PORT_P1
+#define GPIO_PIN_NRF_SPI_MOSI GPIO_PIN2
+#define GPIO_PORT_NRF_SPI_MISO GPIO_PORT_P1
+#define GPIO_PIN_NRF_SPI_MISO GPIO_PIN3
+#define GPIO_PORT_NRF_SPI_CLK GPIO_PORT_P2
+#define GPIO_PIN_NRF_SPI_CLK GPIO_PIN0
+#define GPIO_PORT_NRF_SPI_CS GPIO_PORT_P2
+#define GPIO_PIN_NRF_SPI_CS GPIO_PIN1
+#define NRF_SPI_EUSCI_BASE EUSCI_A1_BASE
+#define NRF_SPI_DMA_TX_TRIGGER DMA_TRIGGERSOURCE_17
+#define NRF_SPI_DMA_RX_TRIGGER DMA_TRIGGERSOURCE_16
+#define NRF_SPI_TXBUF UCA1TXBUF
+#define NRF_SPI_RXBUF UCA1RXBUF
+
+// Power control signals
+#define GPIO_PORT_RX_ENABLE GPIO_PORT_P7
+#define GPIO_PIN_RX_ENABLE GPIO_PIN0
+#define GPIO_PORT_HV_DC_ENABLE GPIO_PORT_P5
+#define GPIO_PIN_HV_DC_ENABLE GPIO_PIN5
 
 #else
 #error "Define a WULPUS_BOARD_* to define your hardware (hardware.h)"
