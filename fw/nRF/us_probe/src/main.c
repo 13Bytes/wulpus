@@ -137,8 +137,8 @@ K_THREAD_DEFINE(mesh_tx_thread_id, 4096 * 2, mesh_tx_thread, NULL, NULL, NULL,
 #endif
 K_THREAD_DEFINE(spi_session_thread_id, 2048, spi_session_thread, NULL, NULL,
                 NULL, SPI_TASK_PRIO, 0, 0);
-K_THREAD_DEFINE(rand_sender_thread_id, 2048, mock_sender_thread, NULL,
-                NULL, NULL, 7, 0, 0);
+// K_THREAD_DEFINE(rand_sender_thread_id, 2048, mock_sender_thread, NULL,
+//                 NULL, NULL, 7, 0, 0);
 
 int main(void)
 {
