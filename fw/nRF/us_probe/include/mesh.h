@@ -1,7 +1,7 @@
 #ifndef MESH_H
 #define MESH_H
 
-#include "ble.h"
+#include "frame.h"
 #include <stdint.h>
 #include <bluetooth/mesh/models.h>
 #include <zephyr/bluetooth/mesh.h>
@@ -45,25 +45,6 @@ struct frame_chunk_header {
 } __packed;
 typedef struct frame_chunk_header frame_chunk_header;
 
-struct frame_header
-{
-  uint32_t timestamp; // Sequence ID (Microseconds)
-  uint16_t size;      // Count of bytes
-  uint16_t addr;      // sender address
-} __packed;
-typedef struct frame_header frame_header;
-
-struct frame_chunk {
-  frame_header header;
-  uint8_t data[BLE_PCKT_SEND_SIZE];
-} __packed;
-typedef struct frame_chunk frame_chunk;
-
-struct config_frame {
-  uint8_t data[BLE_SINGLE_PCKT_SIZE];
-} __packed;
-typedef struct config_frame config_frame;
-
 // --- Externs ---
 extern struct k_msgq mesh_tx_msgq;
 extern struct bt_mesh_model *vnd_model;
@@ -82,8 +63,5 @@ void mesh_set_time_authority(void);
 void mesh_unset_time_authority(void);
 uint32_t mesh_get_network_timestamp(void);
 extern const struct bt_mesh_comp comp;
-extern uint8_t dev_uuid[16];
-
-uint16_t bt_mesh_primary_addr(void);
 
 #endif // MESH_H

@@ -12,12 +12,19 @@ project(us_probe)
 target_sources(app PRIVATE
     src/main.c
     src/ble.c
-    src/mesh.c
     src/spi.c
     src/helper.c
     src/testfunctions.c
-    src/timehelper.c
+    src/uplink.c
+    src/wulpus_node.c
     src/tx_stats.c
 )
+
+if(CONFIG_BT_MESH)
+    target_sources(app PRIVATE
+        src/mesh.c
+        src/timehelper.c
+    )
+endif()
 target_include_directories(app PRIVATE include)
 # NORDIC SDK APP END

@@ -21,6 +21,9 @@
 extern char device_name[DEVICE_NAME_MAX_LEN];
 extern uint8_t device_name_len;
 
+extern uint16_t addr;
+extern uint8_t dev_uuid[16];
+
 // --- Thread Priorities ------------------------
 #define MESH_TX_TASK_PRIO 3
 #define BLE_TASK_PRIO 2

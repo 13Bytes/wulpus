@@ -1,11 +1,12 @@
 #include "spi.h"
 #include "ble.h"
+#include "frame.h"
 #include "main.h"
-#include "mesh.h"
 #include "tx_stats.h"
+#include "uplink.h"
+#include "wulpus_node.h"
 #include <hal/nrf_spim.h>
 #include <nrfx_spim.h>
-#include <zephyr/bluetooth/mesh.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
@@ -105,7 +106,6 @@ void us_spi_init(void)
 void spi_session_thread(void)
 {
   LOG_INF("SPI session thread spawned");
-  uint16_t my_addr = bt_mesh_primary_addr();
 
   while (1)
   {
@@ -179,20 +179,30 @@ void spi_session_thread(void)
 
       // Build one full frame and enqueue as a single item
       frame_chunk chunk = {0};
-      chunk.header.timestamp = mesh_get_network_timestamp();
+      chunk.header.timestamp = wulpus_timestamp_ms_get();
       chunk.header.size = BLE_PCKT_SEND_SIZE;
-      chunk.header.addr = my_addr;
+      chunk.header.addr = wulpus_node_id_get();
       memcpy(&chunk.data, m_rx_buffer, BLE_PCKT_SEND_SIZE);
 
-      uint8_t queue_used =
-          BLE_TX_QUEUE_SIZE - k_msgq_num_free_get(&mesh_tx_msgq);
-      LOG_INF("Mesh queue depth used: %d/%d", queue_used, MESH_TX_QUEUE_SIZE);
-
-      int qerr = k_msgq_put(&mesh_tx_msgq, &chunk, K_MSEC(10));
+      uplink_target target;
+      int qerr = uplink_enqueue_frame(&chunk, K_MSEC(10), &target);
       if (qerr != 0)
       {
-        LOG_WRN("Mesh TX queue full; dropping full frame (err %d)", qerr);
-        tx_stats_mesh_frame_dropped_queue_full();
+        if (target == UPLINK_TARGET_BLE)
+        {
+          LOG_WRN("BLE TX queue full; dropping full frame (err %d)", qerr);
+          tx_stats_ble_frame_dropped_queue_full();
+        }
+        else
+        {
+          LOG_WRN("Mesh TX queue full; dropping full frame (err %d)", qerr);
+          tx_stats_mesh_frame_dropped_queue_full();
+        }
+      }
+      else
+      {
+        uint8_t queue_used = uplink_queue_depth_used(target);
+        LOG_INF("Uplink queue depth used: %d", queue_used);
       }
     }
     // Release session gate

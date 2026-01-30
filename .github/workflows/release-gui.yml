@@ -31,7 +31,6 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           dry_run: ${{ github.event_name == 'pull_request' }}
-          tag_prefix: ${{ github.ref == 'refs/heads/main' && 'v' || format('{0}-v', github.ref_name) }}
       - name: Write version info to artifact
         working-directory: ./sw/wulpus
         shell: pwsh
@@ -54,11 +53,11 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         with:
           tag_name: ${{ steps.tag_version.outputs.new_tag }}
-          name: UI-Release ${{ steps.tag_version.outputs.new_tag }}
+          name: ${{ github.ref == 'refs/heads/main' && 'UI-Release' || 'IN Development' }} ${{ steps.tag_version.outputs.new_tag }}
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           body: |
             Automated release of Wulpus GUI version ${{ steps.tag_version.outputs.new_tag }}.
 
-            ${{ github.ref != 'refs/heads/main' && format('WARNING: This build is from branch `{0}` and is NOT the main branch.', github.ref_name) || '' }}
+            ${{ github.ref != 'refs/heads/main' && format('WARNING: This build is from branch `{0}`. This is NOT the main branch! Proceed with caution...', github.ref_name) || '' }}
 
             The release can be downloaded here [${{ steps.artifact-upload-step.outputs.artifact-url }}](${{ steps.artifact-upload-step.outputs.artifact-url }}) (github-login required)

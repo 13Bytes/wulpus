@@ -5,14 +5,22 @@
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
+
+#if IS_ENABLED(CONFIG_BT_MESH)
+#include <zephyr/bluetooth/mesh.h>
+#include <bluetooth/mesh/models.h>
+#endif
 
 LOG_MODULE_REGISTER(helper);
 
+#if IS_ENABLED(CONFIG_BT_MESH)
 bool own_message(const struct bt_mesh_model *model, const struct bt_mesh_msg_ctx *ctx)
 {
   const struct bt_mesh_elem *elem = bt_mesh_model_elem(model);
   return elem->rt->addr == ctx->addr;
 }
+#endif
 
 void apply_config(const uint8_t *data, uint16_t len)
 {

@@ -1,21 +1,28 @@
-#include <bluetooth/mesh/models.h>
 #include <bluetooth/services/nus.h>
+#include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/mesh.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/sys/util.h>
 
 #include "ble.h"
 #include "helper.h"
 #include "main.h"
-#include "mesh.h"
 #include "spi.h"
 #include "tx_stats.h"
 #include "testfunctions.h"
+#include "wulpus_node.h"
+
+#if IS_ENABLED(CONFIG_BT_MESH)
+#include "mesh.h"
+#include <bluetooth/mesh/models.h>
+#include <zephyr/bluetooth/mesh.h>
+#endif
 
 LOG_MODULE_REGISTER(main);
 
@@ -74,7 +81,10 @@ static void button_2_work_handler(struct k_work *work)
         0xA0, 0x0F, 0xC4, 0x09, 0x19, 0x00, 0x19, 0x00,
         0xD3, 0x09, 0xA9, 0x03, 0xA6, 0x0E, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+#if IS_ENABLED(CONFIG_BT_MESH)
     mesh_publish_config(mock_config, sizeof(mock_config));
+#endif
     apply_config(mock_config, sizeof(mock_config));
 }
 
@@ -87,7 +97,10 @@ static void button_3_work_handler(struct k_work *work)
     uint8_t mock_config[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+#if IS_ENABLED(CONFIG_BT_MESH)
     mesh_publish_config(mock_config, sizeof(mock_config));
+#endif
     apply_config(mock_config, sizeof(mock_config));
 }
 
@@ -107,18 +120,24 @@ static void dbg_button_3_handler(const struct device *dev,
 
 // --- Mesh -------------------------------------
 uint16_t addr;
+uint8_t dev_uuid[16] = {0};
+
+#if IS_ENABLED(CONFIG_BT_MESH)
 static const uint16_t net_idx;
 static const uint32_t iv_index;
 static uint8_t flags;
+#endif
 
 // --- MAIN -------------------------------------
 K_THREAD_DEFINE(ble_tx_thread_id, 2048, ble_tx_thread, NULL, NULL, NULL,
                 BLE_TASK_PRIO, 0, 0);
+#if IS_ENABLED(CONFIG_BT_MESH)
 K_THREAD_DEFINE(mesh_tx_thread_id, 4096 * 2, mesh_tx_thread, NULL, NULL, NULL,
                 MESH_TX_TASK_PRIO, 0, 0);
+#endif
 K_THREAD_DEFINE(spi_session_thread_id, 2048, spi_session_thread, NULL, NULL,
                 NULL, SPI_TASK_PRIO, 0, 0);
-K_THREAD_DEFINE(mesh_rand_sender_thread_id, 2048, mesh_rand_sender_thread, NULL,
+K_THREAD_DEFINE(rand_sender_thread_id, 2048, mock_sender_thread, NULL,
                 NULL, NULL, 7, 0, 0);
 
 int main(void)
@@ -132,13 +151,13 @@ int main(void)
     LOG_INF("Initializing GPIOs...");
     if (!gpio_is_ready_dt(&led) || !gpio_is_ready_dt(&data_ready) ||
         !gpio_is_ready_dt(&ble_cnfg_ready)
-    #if HAS_DBG_BUTTON_2
+#if HAS_DBG_BUTTON_2
         || !gpio_is_ready_dt(&dbg_button_2)
-    #endif
-    #if HAS_DBG_BUTTON_3
+#endif
+#if HAS_DBG_BUTTON_3
         || !gpio_is_ready_dt(&dbg_button_3)
-    #endif
-        )
+#endif
+    )
     {
         LOG_ERR("GPIO devices not ready.");
         return 0;
@@ -146,13 +165,13 @@ int main(void)
     err = gpio_pin_configure_dt(&led, GPIO_OUTPUT_LOW) |
           gpio_pin_configure_dt(&ble_cnfg_ready, GPIO_OUTPUT_LOW) |
           gpio_pin_configure_dt(&data_ready, GPIO_INPUT)
-    #if HAS_DBG_BUTTON_2
+#if HAS_DBG_BUTTON_2
           | gpio_pin_configure_dt(&dbg_button_2, GPIO_INPUT)
-    #endif
-    #if HAS_DBG_BUTTON_3
+#endif
+#if HAS_DBG_BUTTON_3
           | gpio_pin_configure_dt(&dbg_button_3, GPIO_INPUT)
-    #endif
-          ;
+#endif
+        ;
     if (err < 0)
     {
         LOG_ERR("Error configuring GPIO pins");
@@ -207,7 +226,17 @@ int main(void)
         return err;
     }
 
-    LOG_INF("Reading config to prepare for Bluetooth LE Mesh");
+    if (IS_ENABLED(CONFIG_BT_SETTINGS))
+    {
+        LOG_INF("Restoring the Bluetooth state (e.g. pairing keys)");
+        settings_load();
+    }
+    else
+    {
+        LOG_WRN("CONFIG_BT_SETTINGS not enabled - won't restore Bluetooth state");
+    }
+
+    LOG_INF("Reading device id to derive node id / UUID");
 
     if (IS_ENABLED(CONFIG_HWINFO))
     {
@@ -249,24 +278,18 @@ int main(void)
     LOG_INF("Using address: 0x%04x (derived from bytes 14-15: %02X%02X)", addr,
             dev_uuid[14], dev_uuid[15]);
 
+    wulpus_node_id_set_fallback(addr);
+
     LOG_INF("Initializing GATT device name...");
     ble_init_device_name(addr);
 
+#if IS_ENABLED(CONFIG_BT_MESH)
     LOG_INF("Setting up BLE Mesh");
     err = bt_mesh_init(&prov, &comp);
     if (err)
     {
         LOG_ERR("Initializing mesh failed (err %d)\n", err);
         return err;
-    }
-    if (IS_ENABLED(CONFIG_BT_SETTINGS))
-    {
-        LOG_INF("restoring the Bluetooth state (e.g. pairing keys)");
-        settings_load();
-    }
-    else
-    {
-        LOG_WRN("CONFIG_BT_SETTINGS not enabled - won't restore Bluetooth state");
     }
 
     k_sleep(K_MSEC(100));
@@ -300,6 +323,9 @@ int main(void)
         (bt_mesh_prov_bearer_t)(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT));
 
     LOG_INF("Mesh initialized");
+#else
+    LOG_INF("Mesh disabled (CONFIG_BT_MESH=n) - running BLE-only");
+#endif
 
     LOG_INF("Starting BLE advertisement");
     err = start_advertise();

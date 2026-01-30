@@ -15,3 +15,11 @@ Current possible variants include:
 
 - in VSCode in the **nRF Connect** Plugin, add a new Build Configuration with the board you're using
 - Click the Flash button
+
+
+---
+
+# For developers:
+
+The `mesh`-implementation in the nRF firmware can be disabled, by settings `CONFIG_BT_MESH=n` in the `prj.conf` or the respective `{board}.conf`-file.
+

@@ -1,7 +1,7 @@
 #include "ble.h"
+#include "frame.h"
 #include "helper.h"
 #include "main.h"
-#include "mesh.h"
 #include "spi.h"
 #include "tx_stats.h"
 #include <bluetooth/services/nus.h>
@@ -12,6 +12,11 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/util.h>
+
+#if IS_ENABLED(CONFIG_BT_MESH)
+#include "mesh.h"
+#endif
 
 LOG_MODULE_REGISTER(ble);
 
@@ -76,7 +81,7 @@ int start_advertise(void)
   }
   else
   {
-    ble_conn_id = BT_ID_DEFAULT + 1;
+    ble_conn_id = BT_ID_DEFAULT;
   }
   adv_params.id = ble_conn_id;
   LOG_INF("Using BLE identity ID: %d", ble_conn_id);
@@ -104,7 +109,10 @@ static void bt_received(struct bt_conn *const conn, const uint8_t *const data,
 {
   LOG_INF("Received data over BLE (NUS). Len: %d", len);
   apply_config(data, len);
+
+#if IS_ENABLED(CONFIG_BT_MESH)
   mesh_publish_config(data, len);
+#endif
 }
 
 static void update_phy(struct bt_conn *conn)
@@ -148,10 +156,14 @@ static void connected(struct bt_conn *conn, uint8_t err)
     update_phy(conn);
     k_sleep(K_MSEC(100)); // wait a bit for PHY update to take effect
     LOG_INF("Connection interval: %d units (x1.25 for ms)", info.le.interval);
-    LOG_INF("It seems like I'm now the gateway - broadcasting my address to "
-            "the Mesh");
+
+#if IS_ENABLED(CONFIG_BT_MESH)
+    LOG_INF("It seems like I'm now the gateway - broadcasting my address to the Mesh");
     mesh_set_time_authority();
     mesh_publish_self_gateway();
+#else
+    LOG_INF("It seems like I'm now the gateway (BLE-only mode)");
+#endif
   }
   else
   {

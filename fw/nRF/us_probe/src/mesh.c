@@ -160,8 +160,6 @@ static void prov_reset(void) {
   LOG_WRN("The local node has been reset and needs reprovisioning");
 }
 
-uint8_t dev_uuid[16] = {0}; // Will be filled in main
-
 const struct bt_mesh_prov prov = {
     .uuid = dev_uuid,
     .output_size = 4,

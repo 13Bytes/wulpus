@@ -220,7 +220,7 @@ class WulpusDongleDirect(DongleInterface):
                     else:
                         dt_str = "n/a"
                     self._last_frame_time = now
-                    if acq_nr % 20 == 0:
+                    if acq_nr % 50 == 0:
                         print(
                             f"state of frames: acq_nr={acq_nr}, tx_rx_id={tx_rx_id}, dt={dt_str} (to prev. one)")
                         print(
