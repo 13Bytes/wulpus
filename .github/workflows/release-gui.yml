@@ -30,7 +30,8 @@ jobs:
         uses: mathieudutour/github-tag-action@v6.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          dry_run: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main'}}
+          dry_run: ${{ github.event_name == 'pull_request' }}
+          tag_prefix: ${{ github.ref == 'refs/heads/main' && 'v' || format('{0}-v', github.ref_name) }}
       - name: Write version info to artifact
         working-directory: ./sw/wulpus
         shell: pwsh
@@ -50,8 +51,14 @@ jobs:
           compression-level: 8
       - name: Create release
         uses: softprops/action-gh-release@v2
-        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main'}}
+        if: ${{ github.event_name != 'pull_request' }}
         with:
           tag_name: ${{ steps.tag_version.outputs.new_tag }}
           name: UI-Release ${{ steps.tag_version.outputs.new_tag }}
-          body: Automated release of Wulpus GUI version ${{ steps.tag_version.outputs.new_tag }}. The release can be downloaded here [${{ steps.artifact-upload-step.outputs.artifact-url }}](${{ steps.artifact-upload-step.outputs.artifact-url }}) (github-login required)
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
+          body: |
+            Automated release of Wulpus GUI version ${{ steps.tag_version.outputs.new_tag }}.
+
+            ${{ github.ref != 'refs/heads/main' && format('WARNING: This build is from branch `{0}` and is NOT the main branch.', github.ref_name) || '' }}
+
+            The release can be downloaded here [${{ steps.artifact-upload-step.outputs.artifact-url }}](${{ steps.artifact-upload-step.outputs.artifact-url }}) (github-login required)
