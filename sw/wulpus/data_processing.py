@@ -102,11 +102,12 @@ class MeasurementProcessor:
         return pywt.waverec(coeffs_keep, wavelet)
 
     def _wavelet_transform(self, series: pd.Series, config: WulpusConfig, wavelet: str = 'db4', select_level: Optional[int] = None) -> np.ndarray:
+        series_arr = np.array(series, dtype=np.float64, copy=True)
         max_useful_level = pywt.dwt_max_level(
-            data_len=series.size, filter_len=wavelet)
-        coeffs = pywt.wavedec(series, wavelet, level=max_useful_level)
+            data_len=series_arr.size, filter_len=wavelet)
+        coeffs = pywt.wavedec(series_arr, wavelet, level=max_useful_level)
         sigma = np.median(np.abs(coeffs[-1])) / 0.6745
-        threshold = sigma * np.sqrt(2 * np.log(len(series)))
+        threshold = sigma * np.sqrt(2 * np.log(len(series_arr)))
         denoised = [pywt.threshold(c, threshold, mode="soft") for c in coeffs]
         denoised_signal = pywt.waverec(denoised, wavelet)
         if select_level is not None:

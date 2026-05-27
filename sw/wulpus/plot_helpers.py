@@ -2,12 +2,14 @@ from __future__ import annotations
 import os
 import glob
 import inspect
-from datetime import datetime
 import numpy as np
 import pandas as pd
 import wulpus as wulpus_pkg
 from typing import Tuple, List, Optional
 from wulpus.helper import zip_to_dataframe
+
+
+LEGACY_RECORDING_TZ = 'America/Vancouver'
 
 
 def flatten_df_measurements(df: pd.DataFrame, sample_crop: Optional[int] = None) -> Tuple[pd.DataFrame, List[str]]:
@@ -43,28 +45,43 @@ def flatten_df_measurements(df: pd.DataFrame, sample_crop: Optional[int] = None)
     return flattened_df, meas_cols
 
 
-def format_time_index_to_local(dt_index: pd.DatetimeIndex, tz: Optional[str] = None) -> pd.DatetimeIndex:
-    """Convert a DatetimeIndex to a timezone-aware index in tz (or local timezone if tz is None).
+def format_time_index_to_local(
+    dt_index: pd.DatetimeIndex,
+    tz: Optional[str] = None,
+    recording_tz: str = LEGACY_RECORDING_TZ,
+) -> pd.DatetimeIndex:
+    """Return a timezone-aware DatetimeIndex while preserving recording timezone by default.
 
-    The function assumes integer/us timestamps should already have been converted by caller.
+    If `tz` is None, timezone-aware input is kept as-is. Naive input is interpreted as
+    `recording_tz` (legacy logs were recorded in America/Vancouver).
+    If `tz` is provided, values are converted to `tz`.
     """
-    local_tz = datetime.now().astimezone().tzinfo if tz is None else tz
     try:
         if dt_index.tz is None:
-            dt_index = dt_index.tz_localize('UTC').tz_convert(local_tz)
-        else:
-            dt_index = dt_index.tz_convert(local_tz)
+            dt_index = dt_index.tz_localize(recording_tz)
+        if tz is not None:
+            dt_index = dt_index.tz_convert(tz)
     except Exception:
         # best-effort fallback
         try:
-            dt_index = pd.to_datetime(dt_index).tz_localize(
-                'UTC').tz_convert(local_tz)
+            dt_index = pd.to_datetime(dt_index, errors='coerce')
+            if dt_index.tz is None:
+                dt_index = dt_index.tz_localize(recording_tz)
+            if tz is not None:
+                dt_index = dt_index.tz_convert(tz)
         except Exception:
             pass
     return dt_index
 
 
-def format_time_xticks(ax, index, num_ticks: int = 10, rotation: int = 45, tz: Optional[str] = None):
+def format_time_xticks(
+    ax,
+    index,
+    num_ticks: int = 10,
+    rotation: int = 45,
+    tz: Optional[str] = None,
+    recording_tz: str = LEGACY_RECORDING_TZ,
+):
     """Set x-ticks on ax using `index` (pandas Index of acquisition timestamps).
 
     Accepts integer microsecond timestamps or datetime-like Index objects.
@@ -83,11 +100,16 @@ def format_time_xticks(ax, index, num_ticks: int = 10, rotation: int = 45, tz: O
 
     idx_vals = index.values
     if np.issubdtype(idx_vals.dtype, np.integer):
-        dt_index = pd.to_datetime(idx_vals, unit='us', errors='coerce')
+        dt_index = pd.to_datetime(
+            idx_vals, unit='us', errors='coerce', utc=True)
+        dt_index = dt_index.tz_convert(recording_tz if tz is None else tz)
     else:
         dt_index = pd.to_datetime(index, errors='coerce')
-
-    dt_index = format_time_index_to_local(dt_index, tz)
+        dt_index = format_time_index_to_local(
+            dt_index,
+            tz=tz,
+            recording_tz=recording_tz,
+        )
 
     # Add extra ticks at stitched-log boundaries (large gaps or time going backwards).
     # Note: do NOT treat dt == 0 as a boundary (duplicate timestamps are common).
@@ -183,6 +205,7 @@ def imshow_with_time(
     norm=None,
     num_ticks=10,
     tz: Optional[str] = None,
+    recording_tz: str = LEGACY_RECORDING_TZ,
     colorbar_label: str = 'ADC digital code',
     add_colorbar: bool = True,
 ):
@@ -202,5 +225,5 @@ def imshow_with_time(
     if add_colorbar:
         fig.colorbar(im, ax=ax, label=colorbar_label)
     format_time_xticks(ax, index=index, num_ticks=num_ticks,
-                       rotation=45, tz=tz)
+                       rotation=45, tz=tz, recording_tz=recording_tz)
     return im

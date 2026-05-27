@@ -70,6 +70,7 @@ function App() {
       }
       // Check if it's a single DataFrame (has 'measurement' field)
       else if ('measurement' in lastJsonMessage) {
+        console.log('Received data frame:', lastJsonMessage);
         const dataFrame = lastJsonMessage as DataFrame;
         const deviceId = dataFrame.wulpus_id ?? 0;
         setDataFrames(prev => {
