@@ -1,0 +1,2 @@
+# Vendor prefixes used by local devicetree bindings.
+wulpus	Wulpus

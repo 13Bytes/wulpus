@@ -21,7 +21,8 @@ uint8_t m_rx_buffer[BYTES_PR_XFER_RX * CHUNKS_PER_FRAME] = {0};
 
 K_MUTEX_DEFINE(tx_buffer_mutex); // Defined here, used by BLE/Mesh
 
-static const nrfx_spim_t spim_inst = NRFX_SPIM_INSTANCE(SPIM_INST_IDX);
+static nrfx_spim_t spim_inst =
+    NRFX_SPIM_INSTANCE(NRF_SPIM_INST_GET(SPIM_INST_IDX));
 
 static const struct gpio_dt_spec spi_ss_gpio =
     GPIO_DT_SPEC_GET(SPI_SS_NODE, gpios);
@@ -35,7 +36,7 @@ K_SEM_DEFINE(data_ready_trigger_sem, 0, 1);
 
 // --- Functions ---
 
-static void spim_handler(nrfx_spim_evt_t const *p_event, void *p_context)
+static void spim_handler(nrfx_spim_event_t const *p_event, void *p_context)
 {
   if (p_event->type == NRFX_SPIM_EVENT_DONE)
   {
@@ -95,9 +96,8 @@ void us_spi_init(void)
     return;
   }
 
-  IRQ_DIRECT_CONNECT(NRFX_IRQ_NUMBER_GET(NRF_SPIM_INST_GET(SPIM_INST_IDX)),
-                     IRQ_PRIO_LOWEST, NRFX_SPIM_INST_HANDLER_GET(SPIM_INST_IDX),
-                     0);
+  IRQ_CONNECT(NRFX_IRQ_NUMBER_GET(NRF_SPIM_INST_GET(SPIM_INST_IDX)),
+              IRQ_PRIO_LOWEST, nrfx_spim_irq_handler, &spim_inst, 0);
   irq_enable(NRFX_IRQ_NUMBER_GET(NRF_SPIM_INST_GET(SPIM_INST_IDX)));
 
   LOG_INF("SPI init complete");

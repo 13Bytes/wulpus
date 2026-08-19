@@ -155,7 +155,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
     k_sleep(K_MSEC(1000)); // wait a bit for connection to stabilize
     update_phy(conn);
     k_sleep(K_MSEC(100)); // wait a bit for PHY update to take effect
-    LOG_INF("Connection interval: %d units (x1.25 for ms)", info.le.interval);
+    LOG_INF("Connection interval: %u us", info.le.interval_us);
 
 #if IS_ENABLED(CONFIG_BT_MESH)
     LOG_INF("It seems like I'm now the gateway - broadcasting my address to the Mesh");
@@ -328,8 +328,8 @@ void ble_tx_thread(void)
               (uint32_t)(((uint64_t)20 * 1000U + time_since_last_slow_ms / 2) /
                          (uint64_t)time_since_last_slow_ms);
         }
-        LOG_WRN("BLE sent 20 full frames. Average rate: %u fps (dt=%lld ms)",
-                fps, (long long)time_since_last_slow_ms);
+        LOG_DBG("BLE sent 20 full frames. Average rate: %u fps (dt=%lld ms)", fps,
+                (long long)time_since_last_slow_ms);
         slow_last_send_time_ms = now_ms;
       }
     }

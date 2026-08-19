@@ -79,10 +79,27 @@ static bool mesh_time_is_known(void)
 }
 
 // --- Functions ---
+uint16_t mesh_primary_addr_get(void) {
+  return comp.elem[0].rt->addr;
+}
+
 static int output_number(bt_mesh_output_action_t action, uint32_t number) {
   LOG_INF("OOB Number: %u\n", number);
   return 0;
 }
+
+#if !defined(CONFIG_BT_MESH_PROV_OOB_API_LEGACY)
+static int output_numeric(bt_mesh_output_action_t action, uint8_t *numeric,
+                          size_t size) {
+  uint32_t number = 0;
+  for (size_t i = 0; i < MIN(size, sizeof(number)); i++) {
+    number |= ((uint32_t)numeric[i]) << (8 * i);
+  }
+
+  return output_number(action, number);
+}
+#endif
+
 static void prov_complete(uint16_t net_idx, uint16_t addr) {
   LOG_INF("Provisioning completed with net_idx: 0x%04x, addr: 0x%04x", net_idx,
           addr);
@@ -164,7 +181,11 @@ const struct bt_mesh_prov prov = {
     .uuid = dev_uuid,
     .output_size = 4,
     .output_actions = BT_MESH_DISPLAY_NUMBER,
+#if defined(CONFIG_BT_MESH_PROV_OOB_API_LEGACY)
     .output_number = output_number,
+#else
+    .output_numeric = output_numeric,
+#endif
     .complete = prov_complete,
     .reset = prov_reset,
 };
@@ -249,7 +270,7 @@ static void mesh_time_sync_thread(void *a, void *b, void *c)
     uint16_t gw_addr = mesh_get_gateway_addr();
     uint16_t gw_time_srv_addr = (uint16_t)(gw_addr + 1);
     if (!mesh_addr_is_valid_unicast(gw_addr) || !mesh_addr_is_valid_unicast(gw_time_srv_addr) ||
-        gw_addr == bt_mesh_primary_addr())
+        gw_addr == mesh_primary_addr_get())
     {
       k_sleep(K_SECONDS(5));
       continue;
@@ -298,7 +319,7 @@ BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 BT_MESH_MODEL_PUB_DEFINE(vnd_model_pub, NULL, BT_MESH_TX_SDU_MAX);
 
 int mesh_publish_self_gateway() {
-  uint16_t my_addr = bt_mesh_primary_addr();
+  uint16_t my_addr = mesh_primary_addr_get();
   i_am_gateway = true;
   mesh_set_time_authority();
   return mesh_send_gateway_addr(my_addr);
@@ -306,7 +327,7 @@ int mesh_publish_self_gateway() {
 
 int mesh_send_gateway_addr(uint16_t addr) {
   LOG_INF("Publishing gateway-addr: 0x%04x", addr);
-  uint16_t my_addr = bt_mesh_primary_addr();
+  uint16_t my_addr = mesh_primary_addr_get();
   const struct bt_mesh_model *mod = bt_mesh_model_find_vnd(
       comp.elem, BT_MESH_VND_ID, BT_MESH_VND_MODEL_ID_WULPUS);
 
@@ -350,7 +371,7 @@ void mesh_request_gateway_addr(void) {
     LOG_ERR("mesh_request_gateway_addr: model or publication not configured");
     return;
   }
-  uint16_t my_addr = bt_mesh_primary_addr();
+  uint16_t my_addr = mesh_primary_addr_get();
   k_mutex_lock(&mesh_pub_mutex, K_FOREVER);
   bt_mesh_model_msg_init(mod->pub->msg, BT_MESH_VND_OP_WULPUS_GATEWAY_REQ);
   net_buf_simple_add_mem(mod->pub->msg, &my_addr, sizeof(my_addr));
@@ -402,7 +423,7 @@ static int mesh_receiving_gateway_update(const struct bt_mesh_model *model,
     mod->pub->addr = new_addr;
     LOG_INF("Gateway address updated to 0x%04x (from 0x%04x)", new_addr,
             ctx->addr);
-    if (new_addr != bt_mesh_primary_addr()) {
+    if (new_addr != mesh_primary_addr_get()) {
       i_am_gateway = false;
       mesh_unset_time_authority();
     } else {

@@ -17,7 +17,7 @@ void wulpus_node_id_set_fallback(uint16_t node_id)
 uint16_t wulpus_node_id_get(void)
 {
 #if IS_ENABLED(CONFIG_BT_MESH)
-    uint16_t const mesh_addr = bt_mesh_primary_addr();
+    uint16_t const mesh_addr = mesh_primary_addr_get();
     if (mesh_addr != BT_MESH_ADDR_UNASSIGNED && mesh_addr != 0)
     {
         return mesh_addr;

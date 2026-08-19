@@ -64,7 +64,9 @@
 };
 
 &spi20 {
-    status = "okay";
+    // The app drives SPIM20 directly with nrfx; keep Zephyr's SPI driver off
+    // this node so it does not register the same interrupt.
+    status = "disabled";
     compatible = "nordic,nrf-spim";
     pinctrl-0 = <&spi_master_default>;
     pinctrl-1 = <&spi_master_sleep>;
@@ -75,78 +77,4 @@
 &uart30 {
     status = "disabled";
     current-speed = <115200>;
-};
-
-
-/* ---- I2C on P1.02 (SDA), P1.12 (SCL) ---- */
-&i2c21 {
-    status = "okay";
-    pinctrl-0 = <&i2c21_default>;
-    pinctrl-names = "default";
-    clock-frequency = <I2C_BITRATE_STANDARD>;
-
-    npm2100: pmic@74 {
-        compatible = "nordic,npm2100";
-        reg = <0x74>;
-        status = "okay";
-    };
-};
-
-
-&pinctrl {
-    i2c21_default: i2c21_default {
-        group1 {
-            psels = <NRF_PSEL(TWIM_SDA, 1, 2)>,
-                    <NRF_PSEL(TWIM_SCL, 1, 12)>;
-            bias-pull-up;
-        };
-    };
-};
-
-
-&button0 {
-    status = "disabled";
-};
-&button1 {
-    status = "disabled";
-};
-&button2 {
-    status = "disabled";
-};
-&button3 {
-    status = "disabled";
-};
-&led0 {
-    status = "disabled";
-};
-&led1 {
-    status = "disabled";
-};
-&led2 {
-    status = "disabled";
-};
-&led3 { 
-    status = "disabled";
-};
-&pwm_led1 {
-    status = "disabled";
-};
-&pwm20 {
-    status = "disabled";
-};
-&spi00 {
-    status = "disabled";
-};
-
-&mx25r64 {
-    status = "disabled";
-};
-
-/delete-node/ &lfxo;
-
-&grtc {
-    /delete-property/ clocks;
-    /delete-property/ clock-names;
-    clocks = <&pclk>;
-    clock-names = "hfclock";
 };

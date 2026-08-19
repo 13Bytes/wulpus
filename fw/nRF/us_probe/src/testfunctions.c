@@ -28,7 +28,7 @@ void mock_sender_thread(void)
     static uint64_t current_ms = 0;
 
     int64_t loop_start_ms = k_uptime_get();
-    mesh_rand_sender_period_ms = 2000;
+    mesh_rand_sender_period_ms = 50;
     int const LOG_INTERVAL_CNT = 10;
     uint16_t frame_nr = 0;
     while (1)
@@ -55,7 +55,7 @@ void mock_sender_thread(void)
             tx_chunk.data[2] = (uint8_t)(frame_nr & 0xFF);
             tx_chunk.data[3] = (uint8_t)(frame_nr >> 8);
 
-            LOG_INF("mesh_rand_sender: generating frame nr %d", frame_nr);
+            // LOG_INF("mesh_rand_sender: generating frame nr %d", frame_nr);
             uplink_target target;
             if (uplink_enqueue_frame(&tx_chunk, K_NO_WAIT, &target) != 0)
             {

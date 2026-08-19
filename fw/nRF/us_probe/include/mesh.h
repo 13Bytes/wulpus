@@ -61,6 +61,7 @@ int mesh_publish_config(const uint8_t *config_data, size_t len);
 void mesh_request_gateway_addr(void);
 void mesh_set_time_authority(void);
 void mesh_unset_time_authority(void);
+uint16_t mesh_primary_addr_get(void);
 uint32_t mesh_get_network_timestamp(void);
 extern const struct bt_mesh_comp comp;
 
